@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "chrpypy"
+version = "0.1"
+description = "A Python implementation of CHR using chrpp as backend"
+readme = "README.md"
+requires-python = ">=3.8"
+authors = [
+  { name = "BARICHARD Vincent", email = "vincent.barichard@univ-angers.fr" },
+  { name = "GENEST David", email = "david.genest@univ-angers.fr" },
+  { name = "LEGEAY Marc", email = "marc.legeay@univ-angers.fr" },
+  { name = "SIMON Aurélien", email = "aurelien.simon@univ-angers.fr" },
+]
+maintainers = [
+  { name = "Aurélien SIMON", email = "aurelien.simon@univ-angers.fr" },
+]
+dependencies = ["pybind11", "ipython", "graphviz"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Science/Research",
+  "Topic :: Scientific/Engineering",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3",
+]
+
+[project.urls]
+Homepage = "https://github.com/owrel/chrpypy"
+Repository = "https://github.com/owrel/chrpypy"
