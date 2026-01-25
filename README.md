@@ -7,9 +7,9 @@ A Python CHR implementation using [chrpp](https://vynce.gitlab.io/chrpp/) as bac
 ## System Dependencies (Linux):
 
 - g++ (gcc-c++)
-- cmake (>=3.16)
+- cmake
 - make
-- git (for submodule)
+- git
 
 ## Installation:
 
