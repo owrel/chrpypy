@@ -28,6 +28,9 @@ class Constraint:
         args_str = ", ".join(str(arg) for arg in self.args)
         return f"{self.name}({args_str})"
 
+    def __str__(self) -> str:
+        return self.__repr__()
+
     @property
     def arity(self) -> int:
         return len(self.args)
@@ -92,14 +95,34 @@ class ConstraintStore:
         self.history: list[Constraint] = []
 
     def __call__(self, *args: Any) -> Constraint:
+        if len(self.types) > 0 and len(args) != len(self.types):
+            raise ValueError(
+                f"Constraint '{self.name}' expects {len(self.types)} arguments but got {len(args)}"
+            )
+
+        if len(self.types) > 0:
+            for idx, (arg, expected_type) in enumerate(
+                zip(args, self.types, strict=True)
+            ):
+                if not isinstance(arg, Expression) and not isinstance(
+                    arg, expected_type
+                ):
+                    raise TypeError(
+                        f"Argument {idx + 1} of constraint '{self.name}' has incompatible type. "
+                        f"Expected {expected_type}, got {type(arg).__name__}"
+                    )
+
         ret = Constraint()
         ret.name = self.name
         ret.set_args(*args)
+
         self.history.append(ret)
         return ret
 
-    def post(self, *args: Any) -> None:
-        self.program.post(self(*args))
+    def post(self, *args: Any) -> Constraint:
+        c = self(*args)
+        self.program.post(c)
+        return c
 
     def get(self) -> list[Constraint]:
         return [
@@ -109,7 +132,8 @@ class ConstraintStore:
     def from_chr_string(self, input: str) -> "Constraint":
         name = input[: input.find("#")]
         args = input[input.find("(") + 1 : -1].split(",")
-
+        if len(self.types) == 0:
+            return Constraint(name)
         return Constraint(
             name,
             *[

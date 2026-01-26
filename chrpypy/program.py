@@ -17,7 +17,15 @@ import pybind11
 from .chrgen import CHRGenerator
 from .constraints import Constraint, ConstraintStore
 from .expressions import Expression, FunctionCall, introspection
-from .rules import Rule
+from .rules import (
+    AcceptedBodyType,
+    AcceptedHeadType,
+    GuardType,
+    PropagationRule,
+    Rule,
+    SimpagationRule,
+    SimplificationRule,
+)
 from .typesystem import TypeSystem
 
 
@@ -25,6 +33,12 @@ class VerboseLevel(Enum):
     QUIET = 0
     INFO = 1
     DEBUG = 2
+
+
+class CompileTrigger(Enum):
+    FIRST_POST = "first_post"
+    RULE = "rule"
+    COMPILE = "compile"
 
 
 @dataclass
@@ -80,6 +94,7 @@ class Program:
         verbose: VerboseLevel | str = VerboseLevel.QUIET,
         *,
         use_cache: bool = True,
+        compile_on: CompileTrigger | str = CompileTrigger.FIRST_POST,
     ) -> None:
         self.id = Program._id
         Program._id += 1
@@ -109,7 +124,21 @@ class Program:
         else:
             self.verbose = verbose
 
+        if isinstance(compile_on, str):
+            compile_on = compile_on.lower()
+            if compile_on == "first_post":
+                self.compile_on = CompileTrigger.FIRST_POST
+            elif compile_on == "rule":
+                self.compile_on = CompileTrigger.RULE
+            elif compile_on == "compile":
+                self.compile_on = CompileTrigger.COMPILE
+            else:
+                raise ValueError(f"Invalid compile trigger: {compile_on}")
+        else:
+            self.compile_on = compile_on
+
         self.rules: list[Rule] = []
+        self._first_post_done = False
 
     def _log_info(self, message: str) -> None:
         if self.verbose.value >= VerboseLevel.INFO.value:
@@ -154,8 +183,7 @@ class Program:
         return False
 
     def __call__(
-        self,
-        *args: Rule | list[Rule] | tuple[Rule],
+        self, *args: Rule | list[Rule] | tuple[Rule], hold_compile: bool = False
     ):
         for arg in args:
             if isinstance(arg, Rule):
@@ -167,21 +195,74 @@ class Program:
                 self.rules.extend(arg)
             else:
                 raise TypeError(f"Invalid argument type: {type(arg)}")
-        self.compile()
-        self.compiled = True
+
+        if not hold_compile and self.compile_on == CompileTrigger.RULE:
+            self.compile()
+            self.compiled = True
+
+    def simplification(
+        self,
+        negative_head: AcceptedHeadType = None,
+        guard: GuardType = None,
+        body: AcceptedBodyType = None,
+        name: str | None = None,
+        *,
+        hold_compile: bool = False,
+    ) -> SimplificationRule:
+        rule = SimplificationRule(
+            negative_head=negative_head,
+            guard=guard,
+            body=body,
+            name=name,
+        )
+        self(rule, hold_compile=hold_compile)
+        return rule
+
+    def propagation(
+        self,
+        positive_head: AcceptedHeadType = None,
+        guard: GuardType = None,
+        body: AcceptedBodyType = None,
+        name: str | None = None,
+        *,
+        hold_compile: bool = False,
+    ) -> PropagationRule:
+        rule = PropagationRule(
+            positive_head=positive_head,
+            guard=guard,
+            body=body,
+            name=name,
+        )
+        self(rule, hold_compile=hold_compile)
+        return rule
+
+    def simpagation(
+        self,
+        positive_head: AcceptedHeadType = None,
+        negative_head: AcceptedHeadType = None,
+        guard: GuardType = None,
+        body: AcceptedBodyType = None,
+        name: str | None = None,
+        *,
+        hold_compile: bool = False,
+    ) -> SimpagationRule:
+        rule = SimpagationRule(
+            positive_head=positive_head,
+            negative_head=negative_head,
+            guard=guard,
+            body=body,
+            name=name,
+        )
+        self(rule, hold_compile=hold_compile)
+        return rule
 
     def constraint_store(
-        self, name: str, types: list[Any] | tuple[Any] | None = None
+        self, name: str, types: list[Any] | tuple[Any, ...] | None = None
     ) -> ConstraintStore:
         if name in self.constraint_stores:
-            store = self.constraint_stores[name]
-            if (
-                types is None
-                or store.types is None
-                or list(types) == list(store.types)
-            ):
-                return store
-            raise ValueError(f"Type mismatch for constraint store '{name}'")
+            raise ValueError(
+                f"Trying to re_attribute constraint store : '{name}'"
+            )
 
         self.constraint_stores[name] = ConstraintStore(name, self, types)
 
@@ -216,6 +297,15 @@ class Program:
         return getattr(module, self.name)()
 
     def post(self, constraint: Constraint) -> None:
+        if (
+            not self._first_post_done
+            and self.compile_on == CompileTrigger.FIRST_POST
+        ):
+            if not self.compiled:
+                self.compile()
+                self.compiled = True
+            self._first_post_done = True
+
         if hasattr(
             self.wrapper,
             f"add_{constraint.name}",
@@ -259,7 +349,9 @@ class Program:
         if self.wrapper is None:
             raise ValueError("Wrapper is None, cannot get constraints")
 
-        list_str_constraint: list[str] = self.wrapper.get_constraint_store()
+        list_str_constraint: list[str] = sorted(
+            self.wrapper.get_constraint_store()
+        )
         return [
             self.constraint_stores[
                 constraint[: constraint.find("#")]

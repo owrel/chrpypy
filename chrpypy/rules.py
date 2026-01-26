@@ -25,6 +25,8 @@ HeadType = list[Constraint]
 GuardType = Guard | list[Guard] | set[Guard] | None
 BodyType = list[Constraint | Success | Failure | FunctionCall]
 
+_rule_counter = count()
+
 
 def _normalize_list(item: Any) -> list[Constraint]:
     if item is None:
@@ -67,7 +69,7 @@ class Rule:
     negative_head: HeadType = field(default_factory=list)
     guard: "Guard | None" = None
     body: BodyType = field(default_factory=list)
-    _id: int = field(default_factory=count().__next__)
+    _id: int = field(default_factory=lambda: next(_rule_counter))
 
     def __post_init__(self) -> None:
         self.positive_head = _normalize_list(self.positive_head)
@@ -119,32 +121,12 @@ class Rule:
 class SimplificationRule(Rule):
     def __init__(
         self,
-        head: AcceptedHeadType = None,
+        negative_head: AcceptedHeadType = None,
         guard: GuardType = None,
         body: AcceptedBodyType = None,
         name: str | None = None,
     ) -> None:
-        head_list = _normalize_list(head or [])
-        guard_obj = _normalize_guard(guard)
-        body_obj = _normalize_body(body)
-
-        self.name = name
-        self.positive_head = head_list
-        self.negative_head = []
-        self.guard = guard_obj
-        self.body = body_obj
-        self._id = next(count().__next__() for _ in range(1))  # type: ignore
-
-
-class PropagationRule(Rule):
-    def __init__(
-        self,
-        head: AcceptedHeadType = None,
-        guard: GuardType = None,
-        body: AcceptedBodyType = None,
-        name: str | None = None,
-    ) -> None:
-        head_list = _normalize_list(head or [])
+        head_list = _normalize_list(negative_head or [])
         guard_obj = _normalize_guard(guard)
         body_obj = _normalize_body(body)
 
@@ -153,7 +135,27 @@ class PropagationRule(Rule):
         self.negative_head = head_list
         self.guard = guard_obj
         self.body = body_obj
-        self._id = next(count().__next__() for _ in range(1))  # type: ignore
+        self._id = next(_rule_counter)
+
+
+class PropagationRule(Rule):
+    def __init__(
+        self,
+        positive_head: AcceptedHeadType = None,
+        guard: GuardType = None,
+        body: AcceptedBodyType = None,
+        name: str | None = None,
+    ) -> None:
+        head_list = _normalize_list(positive_head or [])
+        guard_obj = _normalize_guard(guard)
+        body_obj = _normalize_body(body)
+
+        self.name = name
+        self.positive_head = head_list
+        self.negative_head = []
+        self.guard = guard_obj
+        self.body = body_obj
+        self._id = next(_rule_counter)
 
 
 class SimpagationRule(Rule):
@@ -175,4 +177,4 @@ class SimpagationRule(Rule):
         self.negative_head = neg_head_list
         self.guard = guard_obj
         self.body = body_obj
-        self._id = next(count().__next__() for _ in range(1))  # type: ignore
+        self._id = next(_rule_counter)

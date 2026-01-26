@@ -108,8 +108,8 @@ class CHRGenerator:
         else:
             chr_block += f'\t<CHR name="{self.program.name}">\n'
         chr_block += f"\t<chr_constraint> {', '.join(signatures)}\n"
-        for i, rule in enumerate(self.program.rules):
-            chr_block += self._generate_rule(rule, i)
+        for rule in self.program.rules:
+            chr_block += self._generate_rule(rule)
 
         chr_block += "\t</CHR>\n"
         chr_block += "*/"
@@ -117,15 +117,15 @@ class CHRGenerator:
         return chr_block
 
     @staticmethod
-    def _generate_rule(rule: Rule, index: int) -> str:
+    def _generate_rule(rule: Rule) -> str:
         rule_str = "\t\t"
         if rule.name:
             rule_str += f"{rule.name} @ "
         else:
-            rule_str += f"rule{index} @ "
+            rule_str += f"rule{rule._id} @ "  # noqa
 
         if rule.negative_head and rule.positive_head:
-            rule_str += f"{CHRGenerator._format_head(rule.negative_head)} \\ {CHRGenerator._format_head(rule.positive_head)} <=> "
+            rule_str += f"{CHRGenerator._format_head(rule.positive_head)} \\ {CHRGenerator._format_head(rule.negative_head)} <=> "
         elif rule.negative_head and not rule.positive_head:
             rule_str += f"{CHRGenerator._format_head(rule.negative_head)} <=> "
         elif rule.positive_head:
