@@ -151,7 +151,7 @@ class Program:
     def _compute_rules_hash(self) -> str:
         hash_obj = hashlib.sha256()
         for rule in self.rules:
-            hash_obj.update(str(rule).encode("utf-8"))
+            hash_obj.update(rule.to_str().encode("utf-8"))
         return hash_obj.hexdigest()
 
     def _check_cached_compilation(self) -> bool:

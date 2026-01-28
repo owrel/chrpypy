@@ -83,6 +83,11 @@ class ConstraintStore:
         self.name = name
         self.program = program
 
+        if self.name == self.program.name:
+            raise ValueError(
+                f"Constraint {name} can not have the same name as program {name}"
+            )
+
         if types is None:
             types = []
 

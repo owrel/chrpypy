@@ -6,6 +6,7 @@ from .expressions import (
     Failure,
     FunctionCall,
     Success,
+    Unification,
 )
 from .rules import BodyType, HeadType, Rule
 from .typesystem import TypeSystem
@@ -57,8 +58,11 @@ class CHRGenerator:
                     formatted_parts.append(
                         CHRGenerator._format_constraint(item)
                     )
-                elif isinstance(item, (Success, Failure, FunctionCall)):
+                elif isinstance(
+                    item, (Success, Failure, FunctionCall, Unification)
+                ):
                     formatted_parts.append(item.to_chrpp())
+
             return ", ".join(formatted_parts)
         if isinstance(body, Constraint):
             return CHRGenerator._format_constraint(body)

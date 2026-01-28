@@ -384,6 +384,29 @@ class Comparison(Guard, Expression):
         return self.op
 
 
+class Unification(Expression):
+    def __init__(self, left: "Expression", right: "Expression"):
+        self.left = left
+        self.right = right
+
+    def __repr__(self):
+        return f"{self.left} %= {self.right}"
+
+    def to_chrpp(self) -> str:
+        left = self.left.to_chrpp()
+        right = self.right.to_chrpp()
+        return f"{left} %= {right}"
+
+    def children(self) -> list[Expression]:  # type: ignore[override]
+        return [self.left, self.right]
+
+    def node_label(self) -> str:  # noqa
+        return "Unification"
+
+    def node_symbol(self) -> str:
+        return "%="
+
+
 class And(Guard):
     def __init__(self, *guards: Guard):
         self.guards = list(guards)

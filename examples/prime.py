@@ -1,10 +1,10 @@
 from chrpypy import (
     SUCCESS,
     Program,
-    PropagationRule,
-    SimpagationRule,
     Variable,
 )
+
+nb = 1000
 
 N = Variable("N")
 X = Variable("X")
@@ -15,24 +15,18 @@ p = Program(name="primes")
 candidate = p.constraint_store("candidate", (int,))
 prime = p.constraint_store("prime", (int,))
 
-p(
-    PropagationRule(head=[candidate(1)], body=SUCCESS),
-    PropagationRule(
-        head=[candidate(N)],
-        body=[candidate(N - 1), prime(N)],
-    ),
-    SimpagationRule(
-        negative_head=[prime(Y)],
-        positive_head=[prime(X)],
-        guard=(X % Y) == 0,
-        body=SUCCESS,
-    ),
+p.simpagation(
+    negative_head=candidate(N), guard=N > 1, body=[candidate(N - 1), prime(N)]
 )
 
+p.simpagation(
+    negative_head=prime(X),
+    positive_head=prime(Y),
+    guard=(X % Y) == 0,
+    body=SUCCESS,
+)
 
-candidate.post(100)
-
+candidate.post(nb)
 print(p.statistics)
 print(p.statistics.total_time)
-
-print("Primes up to 30:", prime.get())
+print(f"Primes up to {nb}:", prime.get())

@@ -22,5 +22,5 @@ pip install . -v
 If wou already have an installation of chrpp (compatible with chrpypy), you can set the following env variable BEFORE installing chrpypy with pip :
 
 ```bash
-export CHRPP_PATH="path/to/chrpp
+export CHRPP_PATH="path/to/chrpp"
 ```

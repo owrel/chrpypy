@@ -6,29 +6,42 @@ def int_caster(input: str) -> int:
     try:
         return int(input)
     except Exception:
-        raise ValueError(f"Could not cast to {input} to int") from None
+        raise ValueError(
+            f"Could not cast {input} of type {type(input)} to int"
+        ) from None
 
 
 def float_caster(input: str) -> float:
     try:
         return float(input)
     except Exception:
-        raise ValueError(f"Could not cast to {input} to float") from None
+        raise ValueError(
+            f"Could not cast {input} of type {type(input)} to float"
+        ) from None
 
 
 def str_caster(input: str) -> str:
     try:
         return str(input)
     except Exception:
-        raise ValueError(f"Could not cast to {input} to str") from None
+        raise ValueError(
+            f"Could not cast {input} of type {type(input)} to str"
+        ) from None
 
 
 def bool_caster(input: str) -> bool:
+    input = input.strip()
     if input.lower() == "false":
         return False
     if input.lower() == "true":
         return True
-    raise ValueError(f"Could not cast to {input} to bool") from None
+    if input == "1":
+        return True
+    if input == "0":
+        return False
+    raise ValueError(
+        f"Could not cast  {input} of type {type(input)} to bool"
+    ) from None
 
 
 class TypeSystem:
@@ -37,7 +50,7 @@ class TypeSystem:
         int: ("?int", "int"),
         float: ("?double", "double"),
         str: ("std::string", "std::string"),
-        bool: ("bool", "bool"),
+        bool: ("?bool", "bool"),
     }
 
     _casters: dict[type, Callable[[str], Any]] = {

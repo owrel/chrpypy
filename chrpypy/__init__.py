@@ -14,6 +14,7 @@ from .expressions import (
     Not,
     Or,
     UnaryOp,
+    Unification,
     Variable,
     ensure_expr,
 )
@@ -44,6 +45,7 @@ __all__ = [
     "SimpagationRule",
     "SimplificationRule",
     "UnaryOp",
+    "Unification",
     "Variable",
     "ensure_expr",
     "viz",

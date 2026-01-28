@@ -19,6 +19,7 @@ p(
     ),
 )
 
+p.compile()
 p.register_function("value", lambda x: print(f"You entered value {x}"))
 print(p.statistics)
 print(p.statistics.total_time)

@@ -1,4 +1,3 @@
-from dataclasses import dataclass, field
 from itertools import count
 from typing import Any
 
@@ -10,22 +9,22 @@ from .expressions import (
     Guard,
     Or,
     Success,
+    Unification,
 )
 
 AcceptedHeadType = list[Constraint] | Constraint | None
 AcceptedBodyType = (
-    list[Constraint | Success | Failure | FunctionCall]
+    list[Constraint | Success | Failure | FunctionCall | Unification]
     | FunctionCall
     | Constraint
     | Success
     | Failure
+    | Unification
     | None
 )
 HeadType = list[Constraint]
 GuardType = Guard | list[Guard] | set[Guard] | None
-BodyType = list[Constraint | Success | Failure | FunctionCall]
-
-_rule_counter = count()
+BodyType = list[Constraint | Success | Failure | FunctionCall | Unification]
 
 
 def _normalize_list(item: Any) -> list[Constraint]:
@@ -52,30 +51,36 @@ def _normalize_guard(guard: Any) -> "Guard | None":
 
 def _normalize_body(
     body: Any,
-) -> list[Constraint | Success | Failure | FunctionCall]:
+) -> BodyType:
     if body is None:
         return []
     if isinstance(body, list):
         return body
-    if isinstance(body, (Constraint, Success, Failure, FunctionCall)):
+    if isinstance(
+        body, (Constraint, Success, Failure, FunctionCall, Unification)
+    ):
         return [body]
+
     return []
 
 
-@dataclass
 class Rule:
-    name: str | None = None
-    positive_head: HeadType = field(default_factory=list)
-    negative_head: HeadType = field(default_factory=list)
-    guard: "Guard | None" = None
-    body: BodyType = field(default_factory=list)
-    _id: int = field(default_factory=lambda: next(_rule_counter))
+    _rule_counter = count()
 
-    def __post_init__(self) -> None:
-        self.positive_head = _normalize_list(self.positive_head)
-        self.negative_head = _normalize_list(self.negative_head)
-        self.guard = _normalize_guard(self.guard)
-        self.body = _normalize_body(self.body)
+    def __init__(
+        self,
+        name: str | None = None,
+        positive_head: HeadType | None = None,
+        negative_head: HeadType | None = None,
+        guard: "Guard | None" = None,
+        body: BodyType | None = None,
+    ) -> None:
+        self.name = name
+        self.positive_head = positive_head or []
+        self.negative_head = negative_head or []
+        self.guard = guard
+        self.body = body or []
+        self._id = next(Rule._rule_counter)
 
     def with_name(self, name: str) -> "Rule":
         self.name = name
@@ -86,6 +91,7 @@ class Rule:
             return "true"
         if len(self.body) == 1 and isinstance(self.body[0], (Success, Failure)):
             return str(self.body[0])
+
         return ", ".join(str(c) for c in self.body)
 
     def to_str(self) -> str:
@@ -126,16 +132,13 @@ class SimplificationRule(Rule):
         body: AcceptedBodyType = None,
         name: str | None = None,
     ) -> None:
-        head_list = _normalize_list(negative_head or [])
-        guard_obj = _normalize_guard(guard)
-        body_obj = _normalize_body(body)
-
-        self.name = name
-        self.positive_head = []
-        self.negative_head = head_list
-        self.guard = guard_obj
-        self.body = body_obj
-        self._id = next(_rule_counter)
+        super().__init__(
+            name=name,
+            positive_head=None,
+            negative_head=_normalize_list(negative_head),
+            guard=_normalize_guard(guard),
+            body=_normalize_body(body),
+        )
 
 
 class PropagationRule(Rule):
@@ -146,16 +149,13 @@ class PropagationRule(Rule):
         body: AcceptedBodyType = None,
         name: str | None = None,
     ) -> None:
-        head_list = _normalize_list(positive_head or [])
-        guard_obj = _normalize_guard(guard)
-        body_obj = _normalize_body(body)
-
-        self.name = name
-        self.positive_head = head_list
-        self.negative_head = []
-        self.guard = guard_obj
-        self.body = body_obj
-        self._id = next(_rule_counter)
+        super().__init__(
+            name=name,
+            positive_head=_normalize_list(positive_head),
+            negative_head=None,
+            guard=_normalize_guard(guard),
+            body=_normalize_body(body),
+        )
 
 
 class SimpagationRule(Rule):
@@ -167,14 +167,10 @@ class SimpagationRule(Rule):
         body: AcceptedBodyType = None,
         name: str | None = None,
     ) -> None:
-        pos_head_list = _normalize_list(positive_head or [])
-        neg_head_list = _normalize_list(negative_head or [])
-        guard_obj = _normalize_guard(guard)
-        body_obj = _normalize_body(body)
-
-        self.name = name
-        self.positive_head = pos_head_list
-        self.negative_head = neg_head_list
-        self.guard = guard_obj
-        self.body = body_obj
-        self._id = next(_rule_counter)
+        super().__init__(
+            name=name,
+            positive_head=_normalize_list(positive_head),
+            negative_head=_normalize_list(negative_head),
+            guard=_normalize_guard(guard),
+            body=_normalize_body(body),
+        )
