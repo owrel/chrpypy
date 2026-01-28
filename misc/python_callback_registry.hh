@@ -20,6 +20,7 @@ public:
     py::gil_scoped_acquire acquire;
     auto it = callbacks.find(name);
     if (it != callbacks.end()) {
+
       it->second(std::forward<Args>(args)...);
     }
   }
@@ -29,6 +30,7 @@ namespace pybind11::detail {
 template <typename T> struct type_caster<chr::Logical_var<T>> {
   static handle cast(const chr::Logical_var<T> &src, return_value_policy,
                      handle) {
+
     return py::cast(src.to_string());
   }
 
