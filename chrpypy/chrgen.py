@@ -107,7 +107,7 @@ class CHRGenerator:
         )
 
         chr_block = "/**\n"
-        if self.program._is_using_py_callback():  # noqa
+        if self.program._retrieve_callbacks():
             chr_block += f'\t<CHR name="{self.program.name}" parameters="PythonCallbackRegistry& registry">\n'
         else:
             chr_block += f'\t<CHR name="{self.program.name}">\n'
@@ -126,7 +126,7 @@ class CHRGenerator:
         if rule.name:
             rule_str += f"{rule.name} @ "
         else:
-            rule_str += f"rule{rule._id} @ "  # noqa
+            rule_str += f"rule{rule._id} @ "
 
         if rule.negative_head and rule.positive_head:
             rule_str += f"{CHRGenerator._format_head(rule.positive_head)} \\ {CHRGenerator._format_head(rule.negative_head)} <=> "
@@ -203,13 +203,7 @@ class CHRGenerator:
         ret += "    callbacks[name] = func;\n"
         ret += "}\n"
         ret += "\n"
-        # ret += "void PythonCallbackRegistry::call(const std::string& name, Args&&... args){\n"
-        # ret += "    py::gil_scoped_acquire acquire;\n"
-        # ret += "    auto it = callbacks.find(name);\n"
-        # ret += "    if (it != callbacks.end()) {\n"
-        # ret += "        it->second();\n"
-        # ret += "    }\n"
-        # ret += "}\n"
+
         return ret
 
     def generate_chrpp(
@@ -219,13 +213,8 @@ class CHRGenerator:
         ret += "#include <iostream>\n"
         ret += "#include <string>\n"
         ret += "#include <chrpp.hh>\n"
-        if self.program._is_using_py_callback():  # noqa
+        if self.program._retrieve_callbacks():
             ret += f"#include <{self.program.python_registry_path}>\n"
-        # ret += "\n"
-        # ret += "inline void hello() {\n"
-        # ret += '    std::cout << "Hello World" << std::endl;\n'
-        # ret += "}\n"
-        # ret += "\n"
 
         ret += self._generate_chr_block()
 
@@ -240,23 +229,23 @@ class CHRGenerator:
         ret += "#include <pybind11/stl.h>\n"
         ret += "#include <vector>\n"
         ret += "#include <unordered_map>\n"
-        if self.program._is_using_py_callback():  # noqa
+        if self.program._retrieve_callbacks():
             ret += f"#include <{self.program.python_registry_path}>\n"
 
-        ret += f"#include <{self.program.folder}/{self.program.name}-pychr{self.program.name}.hh>\n"
+        ret += f"#include <{self.program.current_hash_folder}/{self.program.name}-pychr{self.program.name}.hh>\n"
         ret += "namespace py = pybind11;\n"
         ret += "\n"
 
         ret += f"class {self.program.name}Wrapper {{\n"
         ret += "private:\n"
         ret += f"    chr::Shared_obj<{self.program.name}> space;\n"
-        if self.program._is_using_py_callback():  # noqa
+        if self.program._retrieve_callbacks():
             ret += "        PythonCallbackRegistry registry;;\n"
         ret += "\n"
         ret += "public:\n"
         ret += f"    {self.program.name}Wrapper() {{\n"
 
-        if self.program._is_using_py_callback():  # noqa
+        if self.program._retrieve_callbacks():
             ret += f"        space = {self.program.name}::create(registry);\n"
         else:
             ret += f"        space = {self.program.name}::create();\n"
@@ -267,13 +256,13 @@ class CHRGenerator:
                 "    " + CHRGenerator._constraint_store_add_function(cs) + "\n"
             )
             ret += "\n"
-        if self.program._is_using_py_callback():  # noqa
+        if self.program._retrieve_callbacks():
             ret += "    void register_function(const std::string& name, py::function func) {\n"
             ret += "        registry.register_function(name, func);\n"
             ret += "    }\n"
             ret += "\n"
         ret += "    void reset() {\n"
-        if self.program._is_using_py_callback():  # noqa
+        if self.program._retrieve_callbacks():
             ret += "        PythonCallbackRegistry registry;;\n"
             ret += f"        space = {self.program.name}::create(registry);\n"
         else:
@@ -313,7 +302,7 @@ class CHRGenerator:
         ret += '                "Get constraint store as list of strings")\n'
         ret += f'        .def("reset", &{self.program.name}Wrapper::reset,\n'
         ret += '                "Reset the constraint store")\n'
-        if self.program._is_using_py_callback():  # noqa
+        if self.program._retrieve_callbacks():
             ret += f'        .def("register_function", &{self.program.name}Wrapper::register_function,\n'
             ret += '                "Register a Python function with a name",\n'
             ret += '                py::arg("name"), py::arg("func"))\n'

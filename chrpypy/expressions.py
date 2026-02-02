@@ -403,7 +403,7 @@ class Unification(Expression):
     def node_label(self) -> str:  # noqa
         return "Unification"
 
-    def node_symbol(self) -> str:
+    def node_symbol(self) -> str:  # noqa
         return "%="
 
 

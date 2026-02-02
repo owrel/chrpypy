@@ -1,4 +1,5 @@
 import hashlib
+import operator
 import os
 import shutil
 import subprocess
@@ -16,7 +17,7 @@ import pybind11
 
 from .chrgen import CHRGenerator
 from .constraints import Constraint, ConstraintStore
-from .expressions import Expression, FunctionCall, introspection
+from .expressions import FunctionCall
 from .rules import (
     AcceptedBodyType,
     AcceptedHeadType,
@@ -95,6 +96,7 @@ class Program:
         *,
         use_cache: bool = True,
         compile_on: CompileTrigger | str = CompileTrigger.FIRST_POST,
+        max_history: int = 50,
     ) -> None:
         self.id = Program._id
         Program._id += 1
@@ -110,6 +112,8 @@ class Program:
         self.wrapper = None
         self.constraint_stores: dict[str, ConstraintStore] = {}
         self.use_cache = use_cache
+        self.max_history = max_history
+        self.current_hash_folder: Path | None = None
 
         if isinstance(verbose, str):
             verbose = verbose.lower()
@@ -154,33 +158,43 @@ class Program:
             hash_obj.update(rule.to_str().encode("utf-8"))
         return hash_obj.hexdigest()
 
-    def _check_cached_compilation(self) -> bool:
-        hashfile_path = self.folder / "rules.hash"
-        target_so = self.folder / f"{self.name}.so"
-
-        if not hashfile_path.exists() or not target_so.exists():
-            return False
-
-        try:
-            cached_hash = Path(hashfile_path).read_text().strip()
-            current_hash = self._compute_rules_hash()
-            return cached_hash == current_hash
-        except Exception:
-            return False
-
-    def _save_rules_hash(self) -> None:
-        hashfile_path = self.folder / "rules.hash"
+    def _check_cached_compilation(self) -> tuple[bool, str]:
         current_hash = self._compute_rules_hash()
-        Path(hashfile_path).write_text(current_hash)
+        hash_folder = self.folder / current_hash
 
-    def _is_using_py_callback(self) -> bool:
+        if hash_folder.exists():
+            target_so = hash_folder / f"{self.name}.so"
+            if target_so.exists():
+                self._log_debug(
+                    f"Found cached compilation for hash: {current_hash}"
+                )
+                return True, current_hash
+
+        return False, current_hash
+
+    def _cleanup_old_history(self) -> None:
+        if not self.folder.exists():
+            return
+
+        hash_dirs = [
+            (d, d.stat().st_mtime) for d in self.folder.iterdir() if d.is_dir()
+        ]
+
+        hash_dirs.sort(key=operator.itemgetter(1))
+
+        while len(hash_dirs) > self.max_history:
+            oldest_dir, _ = hash_dirs.pop(0)
+            self._log_debug(f"Removing old hash entry: {oldest_dir.name}")
+            shutil.rmtree(oldest_dir)
+
+    def _retrieve_callbacks(self) -> list[FunctionCall]:
+        ret = []
         for rule in self.rules:
-            for element in rule.body:
-                if isinstance(element, Expression) and introspection(
-                    element, FunctionCall
-                ):
-                    return True
-        return False
+            ret.extend(
+                expr for expr in rule.body if isinstance(expr, FunctionCall)
+            )
+
+        return ret
 
     def __call__(
         self, *args: Rule | list[Rule] | tuple[Rule], hold_compile: bool = False
@@ -274,7 +288,10 @@ class Program:
                 "Program is not compiled, add rule to compile the object"
             )
 
-        target = (self.folder / f"{self.name}.so").resolve()
+        if self.current_hash_folder is None:
+            raise ValueError("Current hash folder is not set")
+
+        target = (self.current_hash_folder / f"{self.name}.so").resolve()
         if not target.exists():
             raise ValueError(
                 f"FATAL : Could not import target wrapper {target} "
@@ -327,6 +344,9 @@ class Program:
                 )
             )
 
+            for cs in self.constraint_stores.values():
+                cs.reset_cache()
+
             mem = time.time() - start_execution_time
             self.statistics.execution_time += mem
             self.statistics.last_execution_time = mem
@@ -375,7 +395,12 @@ class Program:
         except Exception as e:
             raise RuntimeError(f"Failed to extract files: {e}") from e
         res = res.split(";")
-        extracted = [self.folder / r for r in res]
+        if not self.current_hash_folder:
+            raise RuntimeError(
+                "An error has occured : hash folder is not initialized"
+            )
+
+        extracted = [self.current_hash_folder / r for r in res]
         self._log_debug(f"Extracted files: {extracted}")
         return extracted
 
@@ -387,7 +412,6 @@ class Program:
         required_paths = {
             "chrpp_path": Path(self.chrpp_path),
             "chrppc_path": Path(self.chrppc_path),
-            # "chrpp_build_runtime": Path(self.chrpp_build_runtime),
             "chrpp_runtime": Path(self.chrpp_runtime),
             "chrpp_extract_files": Path(self.chrpp_extract_files),
             "python_registry": Path(self.python_registry_path),
@@ -404,10 +428,13 @@ class Program:
         if not self.folder.exists():
             self.folder.mkdir(parents=True)
 
-        if self.use_cache and self._check_cached_compilation():
+        cache_exists, current_hash = self._check_cached_compilation()
+
+        if self.use_cache and cache_exists:
             self._log_info(
-                "Found cached compilation with matching rules hash, skipping compilation use flag use_cache for"
+                f"Found cached compilation with matching rules hash: {current_hash}"
             )
+            self.current_hash_folder = self.folder / current_hash
             self.compiled = True
             mist_start = time.time()
             self.wrapper = self.import_wrapper()
@@ -416,19 +443,25 @@ class Program:
             self._log_debug("Using cached compilation")
             return
 
-        if self.folder.exists():
-            shutil.rmtree(self.folder)
-            self.folder.mkdir(parents=True)
+        self.current_hash_folder = self.folder / current_hash
 
-        if not self.folder.is_dir():
-            raise ValueError("Folder project directory must be a directory")
+        if self.current_hash_folder.exists():
+            shutil.rmtree(self.current_hash_folder)
+        self.current_hash_folder.mkdir(parents=True, exist_ok=True)
+
+        self._log_debug(f"Building in hash folder: {self.current_hash_folder}")
+
+        if not self.current_hash_folder.is_dir():
+            raise ValueError("Hash folder must be a directory")
         self.statistics.misc_time += time.time() - time_lap
 
         chrpp_gen_start = time.time()
 
         self._log_info("Generating CHRPP file")
         chr_gen = CHRGenerator(self)
-        generated_chrpp_path = self.folder / f"{self.name}-pychr.chrpp"
+        generated_chrpp_path = (
+            self.current_hash_folder / f"{self.name}-pychr.chrpp"
+        )
 
         chr_gen.generate_chrpp_file(generated_chrpp_path)
 
@@ -444,7 +477,7 @@ class Program:
             self.chrppc_path,
             str(generated_chrpp_path),
             "-o",
-            str(self.folder),
+            str(self.current_hash_folder),
         ]
         self._log_debug(f"CHRPP compiler command:\n {' '.join(cmd)}")
         try:
@@ -469,7 +502,7 @@ class Program:
         wrapper_start = time.time()
 
         self._log_info("Generating bindings file")
-        bindings_path = self.folder / f"{self.name}_bindings.cpp"
+        bindings_path = self.current_hash_folder / f"{self.name}_bindings.cpp"
         chr_gen.generate_bindings_file(bindings_path)
         self._log_debug(f"Generated bindings file at {bindings_path}")
 
@@ -482,7 +515,7 @@ class Program:
             str(p) for p in self._extract_files(generated_chrpp_path)
         ]
 
-        if self._is_using_py_callback():
+        if self._retrieve_callbacks():
             include_source.append(str(self.python_registry_path))
 
         self._log_info("Compiling C++ shared library")
@@ -500,7 +533,7 @@ class Program:
             "-I",
             pybind11.get_include(),
             "-o",
-            str(self.folder / f"{self.name}.so"),
+            str(self.current_hash_folder / f"{self.name}.so"),
             "-fuse-ld=mold",
             "-std=c++17",
         ]
@@ -518,8 +551,7 @@ class Program:
         self.statistics.compiles += 1
         self.compiled = True
 
-        self._save_rules_hash()
-        self._log_debug("Saved rules hash for caching")
+        self._cleanup_old_history()
 
         self._log_debug("Importing wrapper module")
         mist_start = time.time()

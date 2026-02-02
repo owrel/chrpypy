@@ -12,8 +12,8 @@ M = Variable("M")
 
 p.simpagation(negative_head=gcd(0), body=SUCCESS)
 p.simpagation(
-    negative_head=gcd(N),
-    positive_head=gcd(M),
+    negative_head=gcd(M),
+    positive_head=gcd(N),
     guard=(N <= M),
     body=gcd(M - N),
 )

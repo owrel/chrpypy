@@ -1,3 +1,4 @@
+from collections.abc import Generator
 from dataclasses import field
 from typing import TYPE_CHECKING, Any
 
@@ -72,6 +73,10 @@ class Constraint:
 
         return ret
 
+    def __iter__(self) -> Generator[Any]:
+        values = self.extract_values()
+        yield from values
+
 
 class ConstraintStore:
     def __init__(
@@ -82,6 +87,7 @@ class ConstraintStore:
     ):
         self.name = name
         self.program = program
+        self._cache = []
 
         if self.name == self.program.name:
             raise ValueError(
@@ -130,9 +136,13 @@ class ConstraintStore:
         return c
 
     def get(self) -> list[Constraint]:
-        return [
+        if self._cache:
+            return self._cache
+
+        self._cache = [
             c for c in self.program.get_constraints() if c.name == self.name
         ]
+        return self._cache
 
     def from_chr_string(self, input: str) -> "Constraint":
         name = input[: input.find("#")]
@@ -146,3 +156,6 @@ class ConstraintStore:
                 for idx, arg in enumerate(args)
             ],
         )
+
+    def reset_cache(self) -> None:
+        self._cache = []
