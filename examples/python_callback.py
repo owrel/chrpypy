@@ -1,3 +1,5 @@
+import logging
+
 from chrpypy import (
     SUCCESS,
     FunctionCall,
@@ -6,8 +8,15 @@ from chrpypy import (
     Variable,
 )
 
+logger = logging.getLogger(__name__)
+
+
 p = Program(
-    name="PyCallback", verbose="DEBUG", folder="pycallback", use_cache=False
+    name="PyCallback",
+    verbose="DEBUG",
+    folder="pycallback",
+    use_cache=True,
+    compile_on="compile",
 )
 cb = p.constraint_store("cb", (int,))
 
@@ -20,7 +29,11 @@ p(
 )
 
 p.compile()
-p.register_function("value", lambda x: print(f"You entered value {x}"))
-print(p.statistics)
-print(p.statistics.total_time)
+p.register_function(
+    "value",
+    lambda x: print(x),
+)
+
 cb.post(0)
+logger.info(p.statistics)
+logger.info(p.statistics.total_time)

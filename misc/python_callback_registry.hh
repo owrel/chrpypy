@@ -2,6 +2,7 @@
 #define PYTHON_CALLBACK_REGISTRY_HH
 
 #include <chrpp.hh>
+#include <iostream>
 #include <pybind11/pybind11.h>
 #include <string>
 #include <unordered_map>
@@ -20,8 +21,11 @@ public:
     py::gil_scoped_acquire acquire;
     auto it = callbacks.find(name);
     if (it != callbacks.end()) {
-
       it->second(std::forward<Args>(args)...);
+    } else {
+      std::cout << "Warning: Function '" << name
+                << "' not found in callback registry." << std::endl;
+      throw std::runtime_error("Function '" + name + "' not registered.");
     }
   }
 };

@@ -1,18 +1,26 @@
 from collections.abc import Generator
-from dataclasses import field
+from enum import Enum
 from typing import TYPE_CHECKING, Any
 
-from .expressions import Constant, Expression, Variable, ensure_expr
+from .expressions import (
+    Constant,
+    Expression,
+    LogicalVariable,
+    Symbol,
+    ensure_expr,
+)
 from .typesystem import TypeSystem
 
 if TYPE_CHECKING:
     from .program import Program
 
 
-class Constraint:
-    name: str
-    args: list["Expression"] = field(default_factory=list)
+class ConstraintOrigin(Enum):
+    CHRPP = "CHRPP"
+    PYTHON = "PYTHON"
 
+
+class Constraint:
     def __init__(self, *args: Any):
         if self.__class__.__name__ == "Constraint":
             if len(args) > 0:
@@ -22,12 +30,18 @@ class Constraint:
             self.name = self.__class__.__name__
 
         self.args = [ensure_expr(arg) for arg in args]
+        self.pragma: str | None = None
+        self._origin: ConstraintOrigin = ConstraintOrigin.PYTHON
+
+    @property
+    def origin(self) -> ConstraintOrigin:
+        return self._origin
 
     def __repr__(self):
         if not self.args:
             return f"{self.name}()"
         args_str = ", ".join(str(arg) for arg in self.args)
-        return f"{self.name}({args_str})"
+        return f"{self.name}({args_str})#{self.pragma}"
 
     def __str__(self) -> str:
         return self.__repr__()
@@ -52,9 +66,9 @@ class Constraint:
             if isinstance(expr, Constant):
                 return [expr.value]
 
-            if isinstance(expr, Variable):
+            if isinstance(expr, (LogicalVariable, Symbol)):
                 raise TypeError(
-                    "Found variables in constraint that supposed to be grounded, check for bugs in is_grounded()"
+                    "Found variables/symbol in constraint that supposed to be grounded, check for bugs in is_grounded()"
                 )
 
             if len(expr.children()) == 0:
@@ -105,7 +119,7 @@ class ConstraintStore:
         self.types = types
         self.history: list[Constraint] = []
 
-    def __call__(self, *args: Any) -> Constraint:
+    def __call__(self, *args: Any, pragma: str | None = None) -> Constraint:
         if len(self.types) > 0 and len(args) != len(self.types):
             raise ValueError(
                 f"Constraint '{self.name}' expects {len(self.types)} arguments but got {len(args)}"
@@ -126,6 +140,7 @@ class ConstraintStore:
         ret = Constraint()
         ret.name = self.name
         ret.set_args(*args)
+        ret.pragma = pragma
 
         self.history.append(ret)
         return ret

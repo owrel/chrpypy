@@ -11,7 +11,7 @@ from setuptools.command.install import install
 
 CHRPP_REPO = "https://gitlab.com/vynce/chrpp"
 CHRPP_COMMIT = "d26d6c17cb35d04526014bc21468a4"
-IGNORE_CACHE = False
+IGNORE_CACHE = bool(int(os.getenv("CHRPP_IGNORE_CACHE", "0")))
 
 
 class CustomInstall(install):
@@ -21,6 +21,7 @@ class CustomInstall(install):
 
         install_path = Path(self.install_lib) / "chrpypy"
         cache_path = Path(tempfile.gettempdir()) / "chrpp_cache"
+        build_path = cache_path / "build"
 
         chrpp_path = os.getenv("CHRPP_PATH")
 
@@ -48,22 +49,25 @@ class CustomInstall(install):
             else:
                 print("Start cloning...")
                 cache_path.parent.mkdir(parents=True, exist_ok=True)
+
                 git = shutil.which("git")
                 if not git:
                     raise RuntimeError("Did not find dependency: git")
+
                 subprocess.run(
                     [git, "clone", CHRPP_REPO, str(cache_path)],
                     check=True,
                     capture_output=True,
                     text=True,
                 )
+
                 subprocess.run(
-                    [git, "checkout", CHRPP_COMMIT],
-                    cwd=cache_path,
+                    [git, "-C", str(cache_path), "checkout", CHRPP_COMMIT],
                     check=True,
                     capture_output=True,
                     text=True,
                 )
+
                 print("CHRPP cloned successfully")
                 print("Compiling CHRPP...")
 
@@ -71,20 +75,31 @@ class CustomInstall(install):
                 if not cmake:
                     raise RuntimeError("Did not find dependency: cmake")
 
+                build_path.mkdir(parents=True, exist_ok=True)
+
+                # Configure (out-of-source)
                 subprocess.run(
-                    [cmake, ".", "-DEXAMPLES=OFF"],
-                    cwd=cache_path,
+                    [
+                        cmake,
+                        "-S",
+                        str(cache_path),
+                        "-B",
+                        str(build_path),
+                        "-DEXAMPLES=OFF",
+                    ],
                     check=True,
                     capture_output=True,
                     text=True,
                 )
+
+                # Build
                 subprocess.run(
-                    ["make"],  # noqa
-                    cwd=cache_path,
+                    ["make", "-C", str(build_path)],
                     check=True,
                     capture_output=True,
                     text=True,
                 )
+
                 print("Done compiling.")
 
                 shutil.copytree(cache_path, install_path / "chrpp")
@@ -93,6 +108,7 @@ class CustomInstall(install):
             src_file = Path("misc/python_callback_registry.hh").resolve()
             dest_dir = install_path / "chrpp" / "misc"
             dest_dir.mkdir(parents=True, exist_ok=True)
+
             if src_file.exists():
                 shutil.copy(src_file, dest_dir / "python_callback_registry.hh")
                 print("Copied python_callback_registry.hh to chrpp/misc")
@@ -100,6 +116,7 @@ class CustomInstall(install):
                 raise FileNotFoundError(
                     f"Did not find python_callback_registry : {src_file}"
                 )
+
             print("Done.")
         except Exception as e:
             print(e)
@@ -110,7 +127,5 @@ class CustomInstall(install):
 
 setup(
     packages=find_packages(),
-    cmdclass={
-        "install": CustomInstall,
-    },
+    cmdclass={"install": CustomInstall},
 )

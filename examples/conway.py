@@ -1,18 +1,18 @@
 from time import sleep
 
 from chrpypy.constraints import Constraint
+from chrpypy.expressions import Constant
 
-from chrpypy import ANON, Program, Variable
+from chrpypy import ANON, Program
 
 p = Program(
     name="ConwayLife",
-    verbose="DEBUG",
     folder="conway",
 )
 
 
-x_size = -40, 40
-y_size = -40, 40
+x_size = -20, 20
+y_size = -20, 20
 
 
 cell = p.constraint_store("cell", (int, int))
@@ -28,7 +28,7 @@ tick_clear = p.constraint_store("tick_clear", ())
 tick_next = p.constraint_store("tick_next", ())
 
 
-X = Variable("X")
+# X = Variable("X")
 X_ = Variable("X_")
 
 Y = Variable("Y")
@@ -64,8 +64,8 @@ p.simpagation(
 )
 
 p.simpagation(
-    positive_head=[neighbor(ANON, ANON, X, Y)],
-    body=[count(X, Y, 0, False)],
+    positive_head=[neighbor(ANON, ANON, Constant(0), Y)],
+    body=[count("X", Y, 0, False)],
 )
 
 p.simpagation(
@@ -167,10 +167,12 @@ cell.post(0, 1)
 cell.post(0, 2)
 
 
+# print(p.rules[0].to_str())
+
 for x in range(200):
     print(f"Generation {x}")
     show_grid(cell.get())
     tick.post()
     sleep(0.08)
 
-print(p.statistics.execution_time)
+# print(p.statistics.execution_time)

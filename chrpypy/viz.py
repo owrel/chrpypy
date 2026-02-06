@@ -9,11 +9,19 @@ from .constraints import Constraint
 from .expressions import (
     Expression,
     Failure,
+    FunctionCall,
     Guard,
     Success,
+    Unification,
 )
 from .program import Program
-from .rules import PropagationRule, Rule, SimpagationRule, SimplificationRule
+from .rules import (
+    BodyType,
+    PropagationRule,
+    Rule,
+    SimpagationRule,
+    SimplificationRule,
+)
 
 
 class Renderer:
@@ -122,7 +130,7 @@ class _Parser:
 
     @staticmethod
     def _add_constraint_node(
-        constraint: "Constraint | Failure | Success ",
+        constraint: "Constraint | Success | Failure | FunctionCall | Unification",
         parent_id: str,
         add_node: Callable,
     ) -> str:
@@ -157,7 +165,7 @@ class _Parser:
 
     @staticmethod
     def _add_body_content(
-        body: "list[Constraint] | Constraint | Success| Failure | None",
+        body: BodyType,
         parent_id: str,
         add_node: Callable,
     ) -> None:

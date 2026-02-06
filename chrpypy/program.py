@@ -1,23 +1,16 @@
-import hashlib
-import operator
+import logging
 import os
-import shutil
-import subprocess
-import sysconfig
 import tempfile
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
-from importlib import util
 from pathlib import Path
 from typing import Any
 
-import pybind11
-
-from .chrgen import CHRGenerator
-from .constraints import Constraint, ConstraintStore
-from .expressions import FunctionCall
+from .compiler import Compiler
+from .constraints import Constraint, ConstraintOrigin, ConstraintStore
+from .expressions import FunctionCall, LogicalVariable, Symbol
 from .rules import (
     AcceptedBodyType,
     AcceptedHeadType,
@@ -28,12 +21,7 @@ from .rules import (
     SimplificationRule,
 )
 from .typesystem import TypeSystem
-
-
-class VerboseLevel(Enum):
-    QUIET = 0
-    INFO = 1
-    DEBUG = 2
+from .utils import setup_logging
 
 
 class CompileTrigger(Enum):
@@ -64,9 +52,13 @@ class Statistics:
         )
 
 
+setup_logging()
+
+logger = logging.getLogger(__name__)
+
+
 class Program:
     _id = 0
-
     chrpp_path = os.getenv(
         "CHRPP_PATH",
         str((Path(__file__).resolve().parent / "chrpp").resolve()),
@@ -92,10 +84,9 @@ class Program:
         self,
         name: str | None = None,
         folder: Path | str | None = None,
-        verbose: VerboseLevel | str = VerboseLevel.QUIET,
         *,
         use_cache: bool = True,
-        compile_on: CompileTrigger | str = CompileTrigger.FIRST_POST,
+        compile_on: CompileTrigger = CompileTrigger.FIRST_POST,
         max_history: int = 50,
     ) -> None:
         self.id = Program._id
@@ -109,83 +100,14 @@ class Program:
             self.folder = Path(folder).resolve()
 
         self.compiled = False
-        self.wrapper = None
         self.constraint_stores: dict[str, ConstraintStore] = {}
-        self.use_cache = use_cache
-        self.max_history = max_history
-        self.current_hash_folder: Path | None = None
+        self.logical_variable_registry: dict[str, LogicalVariable] = {}
+        self.compiler = Compiler(self, max_history, use_cache=use_cache)
 
-        if isinstance(verbose, str):
-            verbose = verbose.lower()
-            if verbose == "quiet":
-                self.verbose = VerboseLevel.QUIET
-            elif verbose == "info":
-                self.verbose = VerboseLevel.INFO
-            elif verbose == "debug":
-                self.verbose = VerboseLevel.DEBUG
-            else:
-                raise ValueError(f"Invalid verbose level: {verbose}")
-        else:
-            self.verbose = verbose
-
-        if isinstance(compile_on, str):
-            compile_on = compile_on.lower()
-            if compile_on == "first_post":
-                self.compile_on = CompileTrigger.FIRST_POST
-            elif compile_on == "rule":
-                self.compile_on = CompileTrigger.RULE
-            elif compile_on == "compile":
-                self.compile_on = CompileTrigger.COMPILE
-            else:
-                raise ValueError(f"Invalid compile trigger: {compile_on}")
-        else:
-            self.compile_on = compile_on
+        self.compile_on = compile_on
 
         self.rules: list[Rule] = []
         self._first_post_done = False
-
-    def _log_info(self, message: str) -> None:
-        if self.verbose.value >= VerboseLevel.INFO.value:
-            print(f"{message}")
-
-    def _log_debug(self, message: str) -> None:
-        if self.verbose.value >= VerboseLevel.DEBUG.value:
-            print(f"[DEBUG] {message}")
-
-    def _compute_rules_hash(self) -> str:
-        hash_obj = hashlib.sha256()
-        for rule in self.rules:
-            hash_obj.update(rule.to_str().encode("utf-8"))
-        return hash_obj.hexdigest()
-
-    def _check_cached_compilation(self) -> tuple[bool, str]:
-        current_hash = self._compute_rules_hash()
-        hash_folder = self.folder / current_hash
-
-        if hash_folder.exists():
-            target_so = hash_folder / f"{self.name}.so"
-            if target_so.exists():
-                self._log_debug(
-                    f"Found cached compilation for hash: {current_hash}"
-                )
-                return True, current_hash
-
-        return False, current_hash
-
-    def _cleanup_old_history(self) -> None:
-        if not self.folder.exists():
-            return
-
-        hash_dirs = [
-            (d, d.stat().st_mtime) for d in self.folder.iterdir() if d.is_dir()
-        ]
-
-        hash_dirs.sort(key=operator.itemgetter(1))
-
-        while len(hash_dirs) > self.max_history:
-            oldest_dir, _ = hash_dirs.pop(0)
-            self._log_debug(f"Removing old hash entry: {oldest_dir.name}")
-            shutil.rmtree(oldest_dir)
 
     def _retrieve_callbacks(self) -> list[FunctionCall]:
         ret = []
@@ -211,7 +133,7 @@ class Program:
                 raise TypeError(f"Invalid argument type: {type(arg)}")
 
         if not hold_compile and self.compile_on == CompileTrigger.RULE:
-            self.compile()
+            self.compiler.compile()
             self.compiled = True
 
     def simplification(
@@ -270,6 +192,15 @@ class Program:
         self(rule, hold_compile=hold_compile)
         return rule
 
+    def logicalvar(self, name: str, _type: Any) -> LogicalVariable:
+        self.logical_variable_registry[name] = LogicalVariable(
+            name, _type, self
+        )
+        return self.logical_variable_registry[name]
+
+    def symbol(self, name: str) -> Symbol:  # noqa
+        return Symbol(name)
+
     def constraint_store(
         self, name: str, types: list[Any] | tuple[Any, ...] | None = None
     ) -> ConstraintStore:
@@ -282,49 +213,18 @@ class Program:
 
         return self.constraint_stores[name]
 
-    def import_wrapper(self) -> Any:
-        if not self.compiled:
-            raise ValueError(
-                "Program is not compiled, add rule to compile the object"
-            )
-
-        if self.current_hash_folder is None:
-            raise ValueError("Current hash folder is not set")
-
-        target = (self.current_hash_folder / f"{self.name}.so").resolve()
-        if not target.exists():
-            raise ValueError(
-                f"FATAL : Could not import target wrapper {target} "
-            )
-
-        self._log_debug(f"Importing wrapper from {target}")
-
-        spec = util.spec_from_file_location(self.name, target)
-        if spec is None:
-            raise ValueError(
-                "Unknown error, probably a naming error or pybind11 binding error"
-            )
-        module = util.module_from_spec(spec)
-        if spec.loader is None:
-            raise ValueError(
-                "Unknown error part 2, probably a naming error or pybind11 binding error"
-            )
-        spec.loader.exec_module(module)
-
-        return getattr(module, self.name)()
-
     def post(self, constraint: Constraint) -> None:
         if (
             not self._first_post_done
             and self.compile_on == CompileTrigger.FIRST_POST
         ):
             if not self.compiled:
-                self.compile()
+                self.compiler.compile()
                 self.compiled = True
             self._first_post_done = True
 
         if hasattr(
-            self.wrapper,
+            self.compiler.wrapper,
             f"add_{constraint.name}",
         ):
             self.statistics.calls += 1
@@ -334,7 +234,7 @@ class Program:
 
             # eval(f"self.wrapper.add_{constraint.name}({' ,'.join([str(arg) for arg in constraint.args])})")
 
-            getattr(self.wrapper, f"add_{constraint.name}")(
+            getattr(self.compiler.wrapper, f"add_{constraint.name}")(
                 *(
                     TypeSystem.cast(
                         value,
@@ -356,28 +256,30 @@ class Program:
             )
 
     def register_function(self, name: str, callback: Callable) -> None:
-        if not self.wrapper:
+        if not self.compiler.wrapper:
             raise RuntimeError(
                 "Registering function require that the program is compiled first"
             )
-        if hasattr(self.wrapper, "register_function"):
-            getattr(self.wrapper, "register_function")(name, callback)  # noqa
+        if hasattr(self.compiler.wrapper, "register_function"):
+            getattr(self.compiler.wrapper, "register_function")(name, callback)  # noqa
         else:
             raise RuntimeError("Did not find register function in wrapper")
 
     def get_constraints(self) -> list[Constraint]:
-        if self.wrapper is None:
+        if self.compiler.wrapper is None:
             raise ValueError("Wrapper is None, cannot get constraints")
 
         list_str_constraint: list[str] = sorted(
-            self.wrapper.get_constraint_store()
+            self.compiler.wrapper.get_constraint_store()
         )
-        return [
-            self.constraint_stores[
-                constraint[: constraint.find("#")]
-            ].from_chr_string(constraint)
-            for constraint in list_str_constraint
-        ]
+        ret = []
+        for str_constraint in list_str_constraint:
+            constraint = self.constraint_stores[
+                str_constraint[: str_constraint.find("#")]
+            ].from_chr_string(str_constraint)
+            constraint._origin = ConstraintOrigin.CHRPP
+            ret.append(constraint)
+        return ret
 
     def get_constraint_types(self, name: str) -> list:
         cs = self.constraint_stores[name]
@@ -385,178 +287,10 @@ class Program:
             return []
         return list(cs.types)
 
-    def _extract_files(self, chrpp_file: Path) -> list[Path]:
-        cmd = [self.chrpp_extract_files, str(chrpp_file)]
-        self._log_debug(f"Extracting files with command: {' '.join(cmd)}")
-        try:
-            res = subprocess.run(
-                cmd, check=True, capture_output=True, text=True
-            ).stdout
-        except Exception as e:
-            raise RuntimeError(f"Failed to extract files: {e}") from e
-        res = res.split(";")
-        if not self.current_hash_folder:
-            raise RuntimeError(
-                "An error has occured : hash folder is not initialized"
-            )
-
-        extracted = [self.current_hash_folder / r for r in res]
-        self._log_debug(f"Extracted files: {extracted}")
-        return extracted
-
     def compile(self) -> None:
-        self._log_debug("Starting compilation process")
-        time_lap = time.time()
+        self.compiler.compile()
 
-        self._log_debug("Verifying if paths exist...")
-        required_paths = {
-            "chrpp_path": Path(self.chrpp_path),
-            "chrppc_path": Path(self.chrppc_path),
-            "chrpp_runtime": Path(self.chrpp_runtime),
-            "chrpp_extract_files": Path(self.chrpp_extract_files),
-            "python_registry": Path(self.python_registry_path),
-        }
-
-        for name, path in required_paths.items():
-            if not path.exists():
-                raise FileNotFoundError(
-                    f"Required path '{name}' does not exist: {path}"
-                )
-            self._log_debug(f"Verified {name}: {path}")
-
-        self._log_debug("Setting up build directory")
-        if not self.folder.exists():
-            self.folder.mkdir(parents=True)
-
-        cache_exists, current_hash = self._check_cached_compilation()
-
-        if self.use_cache and cache_exists:
-            self._log_info(
-                f"Found cached compilation with matching rules hash: {current_hash}"
-            )
-            self.current_hash_folder = self.folder / current_hash
-            self.compiled = True
-            mist_start = time.time()
-            self.wrapper = self.import_wrapper()
-            mist_end = time.time()
-            self.statistics.misc_time += mist_end - mist_start
-            self._log_debug("Using cached compilation")
-            return
-
-        self.current_hash_folder = self.folder / current_hash
-
-        if self.current_hash_folder.exists():
-            shutil.rmtree(self.current_hash_folder)
-        self.current_hash_folder.mkdir(parents=True, exist_ok=True)
-
-        self._log_debug(f"Building in hash folder: {self.current_hash_folder}")
-
-        if not self.current_hash_folder.is_dir():
-            raise ValueError("Hash folder must be a directory")
-        self.statistics.misc_time += time.time() - time_lap
-
-        chrpp_gen_start = time.time()
-
-        self._log_info("Generating CHRPP file")
-        chr_gen = CHRGenerator(self)
-        generated_chrpp_path = (
-            self.current_hash_folder / f"{self.name}-pychr.chrpp"
-        )
-
-        chr_gen.generate_chrpp_file(generated_chrpp_path)
-
-        self._log_debug(f"Generated CHRPP file at {generated_chrpp_path}")
-
-        chrpp_gen_end = time.time()
-        self.statistics.generation_time += chrpp_gen_end - chrpp_gen_start
-
-        chrpp_compile_start = time.time()
-
-        self._log_info("Compiling CHRPP file")
-        cmd = [
-            self.chrppc_path,
-            str(generated_chrpp_path),
-            "-o",
-            str(self.current_hash_folder),
-        ]
-        self._log_debug(f"CHRPP compiler command:\n {' '.join(cmd)}")
-        try:
-            subprocess.run(
-                cmd,
-                check=True,
-            )
-        except Exception as e:
-            chrpp_end = time.time()
-            self.statistics.chrppc_compilation_time += (
-                chrpp_end - chrpp_compile_start
-            )
-            raise RuntimeError(
-                f"CHRPP compilation failed with error: {e}"
-            ) from e
-
-        chrpp_end = time.time()
-        self.statistics.chrppc_compilation_time += (
-            chrpp_end - chrpp_compile_start
-        )
-
-        wrapper_start = time.time()
-
-        self._log_info("Generating bindings file")
-        bindings_path = self.current_hash_folder / f"{self.name}_bindings.cpp"
-        chr_gen.generate_bindings_file(bindings_path)
-        self._log_debug(f"Generated bindings file at {bindings_path}")
-
-        wrapper_end = time.time()
-        self.statistics.generation_time += wrapper_end - wrapper_start
-
-        so_start = time.time()
-
-        include_source = [
-            str(p) for p in self._extract_files(generated_chrpp_path)
-        ]
-
-        if self._retrieve_callbacks():
-            include_source.append(str(self.python_registry_path))
-
-        self._log_info("Compiling C++ shared library")
-
-        cmd = [
-            shutil.which("g++"),
-            "-shared",
-            "-fPIC",
-            *include_source,
-            str(bindings_path),
-            "-I",
-            self.chrpp_runtime,
-            "-I",
-            sysconfig.get_paths()["include"],
-            "-I",
-            pybind11.get_include(),
-            "-o",
-            str(self.current_hash_folder / f"{self.name}.so"),
-            "-fuse-ld=mold",
-            "-std=c++17",
-        ]
-
-        self._log_debug(f"C++ compiler command:\n {' '.join(cmd)}")
-        try:
-            subprocess.run(cmd, check=True)
-        except Exception as e:
-            so_end = time.time()
-            self.statistics.cpp_compilation_time += so_end - so_start
-            raise RuntimeError(f"C++ compilation failed with error: {e}") from e
-
-        so_end = time.time()
-        self.statistics.cpp_compilation_time += so_end - so_start
-        self.statistics.compiles += 1
-        self.compiled = True
-
-        self._cleanup_old_history()
-
-        self._log_debug("Importing wrapper module")
-        mist_start = time.time()
-        self.wrapper = self.import_wrapper()
-        mist_end = time.time()
-        self.statistics.misc_time += mist_end - mist_start
-
-        self._log_debug("Compilation process completed successfully")
+    def print(self, *, chrpp_format: bool = False) -> str:
+        if not chrpp_format:
+            return "\n".join([rule.to_str() for rule in self.rules])
+        return self.compiler.chr_gen._generate_chr_block()

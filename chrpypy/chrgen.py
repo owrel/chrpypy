@@ -27,6 +27,8 @@ class CHRGenerator:
         if not constraint.args:
             return f"{constraint.name}()"
         args_str = ", ".join(arg.to_chrpp() for arg in constraint.args)
+        if constraint.pragma:
+            return f"{constraint.name}({args_str})#{constraint.pragma}"
         return f"{constraint.name}({args_str})"
 
     @staticmethod
@@ -43,7 +45,7 @@ class CHRGenerator:
 
     @staticmethod
     def _format_body(body: BodyType) -> str:
-        if body is None:
+        if len(body) == 0:
             return "success()"
         if isinstance(body, (Success, Failure)):
             return body.to_chrpp()
@@ -145,54 +147,6 @@ class CHRGenerator:
         return rule_str
 
     @staticmethod
-    def generate_callback_registry_header() -> str:
-        ret = ""
-        ret += "#ifndef PYTHON_CALLBACK_REGISTRY_HH\n"
-        ret += "#define PYTHON_CALLBACK_REGISTRY_HH\n"
-        ret += "\n"
-        ret += "#include <string>\n"
-
-        ret += "#include <chrpp.hh>\n"
-        ret += "#include <unordered_map>\n"
-        ret += "#include <pybind11/pybind11.h>\n"
-        ret += "\n"
-        ret += "namespace py = pybind11;\n"
-        ret += "\n"
-        ret += 'class __attribute__((visibility("default"))) PythonCallbackRegistry {\n'
-        ret += "    std::unordered_map<std::string, py::function> callbacks;\n"
-        ret += "    \n"
-        ret += "public:\n"
-        ret += "    void register_function(const std::string& name, py::function func);\n"
-        ret += "    template<typename... Args>\n"
-        ret += "void call(const std::string& name, Args&&... args){\n"
-        ret += "    py::gil_scoped_acquire acquire;\n"
-        ret += "    auto it = callbacks.find(name);\n"
-        ret += "    if (it != callbacks.end()) {\n"
-        ret += "        it->second(std::forward<Args>(args)...);\n"
-        ret += "    }\n"
-        ret += "}\n"
-        ret += "};\n"
-        ret += "\n"
-        ret += "namespace pybind11::detail {\n"
-        ret += "    template<typename T>\n"
-        ret += "    struct type_caster<chr::Logical_var<T>> {\n"
-
-        ret += "        static handle cast(const chr::Logical_var<T>& src,\n"
-        ret += "                          return_value_policy /* policy */,\n"
-        ret += "                          handle /* parent */) {\n"
-        ret += "            return py::cast(src.to_string()); // Or whatever accessor exists\n"
-        ret += "        }\n"
-        ret += "\n"
-
-        ret += '        PYBIND11_TYPE_CASTER(chr::Logical_var<T>, _("LogicalVar[") +\n'
-        ret += '                            type_caster<T>::name + _("]"));\n'
-        ret += "    };\n"
-        ret += "}\n"
-
-        ret += "#endif // PYTHON_CALLBACK_REGISTRY_HH\n"
-        return ret
-
-    @staticmethod
     def generate_callback_registry_implementation(
         callback_registry_hh: Path | str,
     ) -> str:
@@ -232,7 +186,7 @@ class CHRGenerator:
         if self.program._retrieve_callbacks():
             ret += f"#include <{self.program.python_registry_path}>\n"
 
-        ret += f"#include <{self.program.current_hash_folder}/{self.program.name}-pychr{self.program.name}.hh>\n"
+        ret += f"#include <{self.program.compiler.current_hash_folder}/{self.program.name}-pychr{self.program.name}.hh>\n"
         ret += "namespace py = pybind11;\n"
         ret += "\n"
 
@@ -317,13 +271,6 @@ class CHRGenerator:
         ret += ";\n"
         ret += "}\n"
         return ret
-
-    def generate_callback_registry_header_file(
-        self, output_path: Path | str
-    ) -> str:
-        content = self.generate_callback_registry_header()
-        Path(output_path).write_text(content)
-        return content
 
     def generate_callback_registry_implementation_file(
         self, output_path: Path | str, callback_registry_hh: Path | str

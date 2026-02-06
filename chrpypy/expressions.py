@@ -1,7 +1,10 @@
 from abc import ABC, abstractmethod
-from typing import Any, override
+from typing import TYPE_CHECKING, Any, override
 
 from .typesystem import TypeSystem
+
+if TYPE_CHECKING:
+    from .program import Program
 
 
 def ensure_expr(value: Any) -> "Expression":
@@ -102,9 +105,15 @@ class Expression(ABC):
         return Comparison(">=", self, ensure_expr(other))
 
 
-class Variable(Expression):
-    def __init__(self, name: str):
+class LogicalVariable(Expression):
+    def __init__(self, name: str, _type: Any, program: "Program"):
+        if _type not in TypeSystem.python_types():
+            raise TypeError(
+                f"Unhandled type {_type}, if you want to add custom type, add type handling through TypeSystem"
+            )
         self.name = name
+        self.program = program
+        self._type = _type
 
     def __repr__(self):
         return self.name
@@ -126,7 +135,31 @@ class Variable(Expression):
         return False
 
 
-class AnonymousVariable(Expression):
+class Symbol(Expression):
+    def __init__(self, name: str):
+        self.name = name
+
+    def __repr__(self):
+        return self.name
+
+    def __hash__(self):
+        return hash(self.name)
+
+    def to_chrpp(self) -> str:
+        return self.name.upper() if len(self.name) == 1 else self.name
+
+    def node_label(self) -> str:  # noqa
+        return "Symbol"
+
+    def node_symbol(self) -> str | None:
+        return self.name
+
+    @override
+    def is_grounded(self) -> bool:
+        return False
+
+
+class Anonymous(Expression):
     def __init__(self):
         pass
 
@@ -140,7 +173,7 @@ class AnonymousVariable(Expression):
         return "_"
 
     def node_label(self) -> str:  # noqa
-        return "AnonymousVariable"
+        return "Anonymous"
 
     def node_symbol(self) -> str | None:  # noqa
         return "_"
@@ -482,4 +515,4 @@ class Not(Guard):
 
 FAILURE = Failure()
 SUCCESS = Success()
-ANON = AnonymousVariable()
+ANON = Anonymous()
