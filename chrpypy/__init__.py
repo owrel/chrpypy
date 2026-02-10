@@ -11,14 +11,15 @@ from .expressions import (
     Expression,
     FunctionCall,
     Guard,
+    LogicalVariable,
     Not,
     Or,
+    Symbol,
     UnaryOp,
     Unification,
-    Variable,
     ensure_expr,
 )
-from .program import ConstraintStore, Program
+from .program import CompileTrigger, ConstraintStore, Program
 from .rules import PropagationRule, Rule, SimpagationRule, SimplificationRule
 from .viz import Renderer, viz
 
@@ -30,12 +31,14 @@ __all__ = [
     "BinaryOp",
     "CHRGenerator",
     "Comparison",
+    "CompileTrigger",
     "Constant",
     "Constraint",
     "ConstraintStore",
     "Expression",
     "FunctionCall",
     "Guard",
+    "LogicalVariable",
     "Not",
     "Or",
     "Program",
@@ -44,9 +47,9 @@ __all__ = [
     "Rule",
     "SimpagationRule",
     "SimplificationRule",
+    "Symbol",
     "UnaryOp",
     "Unification",
-    "Variable",
     "ensure_expr",
     "viz",
 ]

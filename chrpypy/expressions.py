@@ -41,13 +41,13 @@ class Expression(ABC):
     def is_grounded(self) -> bool:
         return all(child.is_grounded() for child in self.children())
 
-    def children(self) -> list["Expression"]:  # noqa
+    def children(self) -> list["Expression"]:
         return []
 
     def node_label(self) -> str:
         return self.__class__.__name__
 
-    def node_symbol(self) -> str | None:  # noqa
+    def node_symbol(self) -> str | None:
         return None
 
     def __hash__(self) -> int:
@@ -124,7 +124,7 @@ class LogicalVariable(Expression):
     def to_chrpp(self) -> str:
         return self.name.upper() if len(self.name) == 1 else self.name
 
-    def node_label(self) -> str:  # noqa
+    def node_label(self) -> str:
         return "Variable"
 
     def node_symbol(self) -> str | None:
@@ -133,6 +133,23 @@ class LogicalVariable(Expression):
     @override
     def is_grounded(self) -> bool:
         return False
+
+    def get_value(self) -> Any:
+        if self.program.compiler.wrapper is not None:
+            if not hasattr(
+                self.program.compiler.wrapper,
+                f"get_logical_var_{self._type.__name__}",
+            ):
+                print(f"get_logical_var_{self._type.__name__} not found ")
+            return self._type(
+                getattr(
+                    self.program.compiler.wrapper,
+                    f"get_logical_var_{self._type.__name__}",
+                )(self.name)
+            )
+        raise RuntimeError(
+            f"Did not found the associated registry to get_logical_var_{self._type.__name__}"
+        )
 
 
 class Symbol(Expression):
@@ -148,7 +165,7 @@ class Symbol(Expression):
     def to_chrpp(self) -> str:
         return self.name.upper() if len(self.name) == 1 else self.name
 
-    def node_label(self) -> str:  # noqa
+    def node_label(self) -> str:
         return "Symbol"
 
     def node_symbol(self) -> str | None:
@@ -169,13 +186,13 @@ class Anonymous(Expression):
     def __hash__(self):
         return hash("_")
 
-    def to_chrpp(self) -> str:  # noqa
+    def to_chrpp(self) -> str:
         return "_"
 
-    def node_label(self) -> str:  # noqa
+    def node_label(self) -> str:
         return "Anonymous"
 
-    def node_symbol(self) -> str | None:  # noqa
+    def node_symbol(self) -> str | None:
         return "_"
 
     @override
@@ -205,7 +222,7 @@ class Constant(Expression):
             return "true" if self.value else "false"
         return str(self.value)
 
-    def node_label(self) -> str:  # noqa
+    def node_label(self) -> str:
         return "Constant"
 
     def node_symbol(self) -> str | None:
@@ -256,7 +273,7 @@ class BinaryOp(Expression):
     def children(self) -> list[Expression]:
         return [self.left, self.right]
 
-    def node_label(self) -> str:  # noqa
+    def node_label(self) -> str:
         return "BinaryOp"
 
     def node_symbol(self) -> str | None:
@@ -278,7 +295,7 @@ class UnaryOp(Expression):
     def children(self) -> list[Expression]:
         return [self.operand]
 
-    def node_label(self) -> str:  # noqa
+    def node_label(self) -> str:
         return "UnaryOp"
 
     def node_symbol(self) -> str | None:
@@ -303,7 +320,7 @@ class FunctionCall(Expression):
     def children(self) -> list[Expression]:
         return self.args
 
-    def node_label(self) -> str:  # noqa
+    def node_label(self) -> str:
         return "FunctionCall"
 
     def node_symbol(self) -> str | None:
@@ -317,16 +334,16 @@ class Success(Expression):
     def __repr__(self):
         return "success()"
 
-    def to_chrpp(self) -> str:  # noqa
+    def to_chrpp(self) -> str:
         return "success()"
 
-    def children(self) -> list[Expression]:  # noqa
+    def children(self) -> list[Expression]:
         return []
 
-    def node_label(self) -> str:  # noqa
+    def node_label(self) -> str:
         return "success()"
 
-    def node_symbol(self) -> str | None:  # noqa
+    def node_symbol(self) -> str | None:
         return None
 
 
@@ -337,16 +354,16 @@ class Failure(Expression):
     def __repr__(self):
         return "fail()"
 
-    def to_chrpp(self) -> str:  # noqa
+    def to_chrpp(self) -> str:
         return "fail()"
 
-    def children(self) -> list[Expression]:  # noqa
+    def children(self) -> list[Expression]:
         return []
 
-    def node_label(self) -> str:  # noqa
+    def node_label(self) -> str:
         return "fail()"
 
-    def node_symbol(self) -> str | None:  # noqa
+    def node_symbol(self) -> str | None:
         return None
 
 
@@ -355,13 +372,13 @@ class Guard(ABC):
     def to_chrpp(self) -> str:
         pass
 
-    def children(self) -> list["Guard"]:  # noqa
+    def children(self) -> list["Guard"]:
         return []
 
     def node_label(self) -> str:
         return self.__class__.__name__
 
-    def node_symbol(self) -> str | None:  # noqa
+    def node_symbol(self) -> str | None:
         return None
 
     def __and__(self, other: "Guard"):
@@ -410,7 +427,7 @@ class Comparison(Guard, Expression):
     def children(self) -> list[Expression]:  # type: ignore[override]
         return [self.left, self.right]
 
-    def node_label(self) -> str:  # noqa
+    def node_label(self) -> str:
         return "Comparison"
 
     def node_symbol(self) -> str:
@@ -433,10 +450,10 @@ class Unification(Expression):
     def children(self) -> list[Expression]:  # type: ignore[override]
         return [self.left, self.right]
 
-    def node_label(self) -> str:  # noqa
+    def node_label(self) -> str:
         return "Unification"
 
-    def node_symbol(self) -> str:  # noqa
+    def node_symbol(self) -> str:
         return "%="
 
 
@@ -459,10 +476,10 @@ class And(Guard):
     def children(self) -> list[Guard]:
         return self.guards
 
-    def node_label(self) -> str:  # noqa
+    def node_label(self) -> str:
         return "And"
 
-    def node_symbol(self) -> str | None:  # noqa
+    def node_symbol(self) -> str | None:
         return "∧"
 
 
@@ -485,10 +502,10 @@ class Or(Guard):
     def children(self) -> list[Guard]:
         return self.guards
 
-    def node_label(self) -> str:  # noqa
+    def node_label(self) -> str:
         return "Or"
 
-    def node_symbol(self) -> str | None:  # noqa
+    def node_symbol(self) -> str | None:
         return "∨"  # noqa
 
 
@@ -506,10 +523,10 @@ class Not(Guard):
     def children(self) -> list[Guard]:
         return [self.guard]
 
-    def node_label(self) -> str:  # noqa
+    def node_label(self) -> str:
         return "Not"
 
-    def node_symbol(self) -> str | None:  # noqa
+    def node_symbol(self) -> str | None:
         return "¬"
 
 

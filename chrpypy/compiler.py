@@ -4,6 +4,7 @@ import operator
 import shutil
 import subprocess
 import sysconfig
+import tempfile
 import time
 from collections.abc import Callable
 from importlib import util
@@ -15,6 +16,7 @@ import pybind11
 from .chrgen import CHRGenerator
 
 if TYPE_CHECKING:
+    from .constraints import Constraint
     from .program import Program
 
 logger = logging.getLogger(__name__)
@@ -33,6 +35,11 @@ class Compiler:
         self.use_cache = use_cache
         self.wrapper = None
         self.chr_gen = CHRGenerator(self.program)
+        self.compiled = False
+
+        self.current_hash_folder: Path = (
+            Path(tempfile.gettempdir()) / "default _chrpypy_compile"
+        )
 
     def _compute_hash(self) -> str:
         hash_obj = hashlib.sha256()
@@ -148,10 +155,26 @@ class Compiler:
 
             error_file = error_folder / "COMPILATION_ERROR"
             error_message = f"{stage} compilation failed with error:\n{error}"
+            if (
+                isinstance(error, subprocess.CalledProcessError)
+                and error.stderr
+            ):
+                error_message += f"\n\nSubprocess stderr:\n{error.stderr}"
             error_file.write_text(error_message)
             logger.error(f"Compilation error saved to {error_file}")
 
-    def compile(self) -> None:
+    def compile(self, *, load_previous_stores: bool = True) -> None:
+        save: dict[str, list[Constraint]] = {}
+        if (
+            load_previous_stores
+            and self.compiled
+            and self.program.constraint_stores
+        ):
+            for constraint_store_name in self.program.constraint_stores:
+                save[constraint_store_name] = self.program.constraint_stores[
+                    constraint_store_name
+                ].get()
+
         logger.debug("Starting compilation process")
         time_lap = time.time()
 
@@ -161,7 +184,7 @@ class Compiler:
             "chrppc_path": Path(self.program.chrppc_path),
             "chrpp_runtime": Path(self.program.chrpp_runtime),
             "chrpp_extract_files": Path(self.program.chrpp_extract_files),
-            "python_registry": Path(self.program.python_registry_path),
+            "helper_hh": Path(self.program.helper_hh),
         }
 
         for name, path in required_paths.items():
@@ -232,8 +255,9 @@ class Compiler:
             subprocess.run(
                 cmd,
                 check=True,
+                capture_output=True,
             )
-        except Exception as e:
+        except subprocess.CalledProcessError as e:
             chrpp_end = time.time()
             self.program.statistics.chrppc_compilation_time += (
                 chrpp_end - chrpp_compile_start
@@ -268,7 +292,7 @@ class Compiler:
         ]
 
         if self.program._retrieve_callbacks():
-            include_source.append(str(self.program.python_registry_path))
+            include_source.append(str(self.program.helper_hh))
 
         logger.info("Compiling C++ shared library")
 
@@ -291,8 +315,8 @@ class Compiler:
 
         logger.debug(f"C++ compiler command:\n {' '.join(cmd)}")
         try:
-            subprocess.run(cmd, check=True)
-        except Exception as e:
+            subprocess.run(cmd, check=True, capture_output=True)
+        except subprocess.CalledProcessError as e:
             so_end = time.time()
             self.program.statistics.cpp_compilation_time += so_end - so_start
             self._handle_compilation_error(e, "C++")
@@ -310,5 +334,10 @@ class Compiler:
         self.wrapper = self.import_wrapper()
         mist_end = time.time()
         self.program.statistics.misc_time += mist_end - mist_start
+        if load_previous_stores:
+            for constraint_store_name, saved_constraints in save.items():
+                self.program.constraint_stores[constraint_store_name].posts(
+                    saved_constraints
+                )
 
         logger.debug("Compilation process completed successfully")

@@ -74,11 +74,15 @@ class Program:
         (Path(chrpp_path).resolve() / "misc" / "chrpp_extract_files").resolve()
     )
 
-    python_registry_path = str(
-        (
-            Path(chrpp_path).resolve() / "misc" / "python_callback_registry.hh"
-        ).resolve()
+    helper_hh = str(
+        (Path(chrpp_path).resolve() / "misc" / "helper.hh").resolve()
     )
+
+    helper_core_hh = str(
+        (Path(chrpp_path).resolve() / "misc" / "helper_core.hh").resolve()
+    )
+
+    compile_trigger = CompileTrigger
 
     def __init__(
         self,
@@ -193,12 +197,27 @@ class Program:
         return rule
 
     def logicalvar(self, name: str, _type: Any) -> LogicalVariable:
+
         self.logical_variable_registry[name] = LogicalVariable(
             name, _type, self
         )
+
+        if hasattr(
+            self.compiler.wrapper,
+            f"set_logical_var_{self.logical_variable_registry[name]._type.__name__}",
+        ):
+            getattr(
+                self.compiler.wrapper,
+                f"set_logical_var_{self.logical_variable_registry[name]._type.__name__}",
+            )(name)
+        else:
+            raise TypeError(
+                f"Cound not find function to create logical var of type {_type.__name__}"
+            )
+
         return self.logical_variable_registry[name]
 
-    def symbol(self, name: str) -> Symbol:  # noqa
+    def symbol(self, name: str) -> Symbol:
         return Symbol(name)
 
     def constraint_store(
@@ -234,15 +253,20 @@ class Program:
 
             # eval(f"self.wrapper.add_{constraint.name}({' ,'.join([str(arg) for arg in constraint.args])})")
 
-            getattr(self.compiler.wrapper, f"add_{constraint.name}")(
-                *(
-                    TypeSystem.cast(
-                        value,
-                        self.constraint_stores[constraint.name].types[idx],
+            args = []
+
+            for idx, val in enumerate(values):
+                if isinstance(val, LogicalVariable):
+                    args.append(val)
+                else:
+                    args.append(
+                        TypeSystem.cast(
+                            val,
+                            self.constraint_stores[constraint.name].types[idx],
+                        )
                     )
-                    for idx, value in enumerate(values)
-                )
-            )
+
+            getattr(self.compiler.wrapper, f"add_{constraint.name}")(*args)
 
             for cs in self.constraint_stores.values():
                 cs.reset_cache()
@@ -293,4 +317,4 @@ class Program:
     def print(self, *, chrpp_format: bool = False) -> str:
         if not chrpp_format:
             return "\n".join([rule.to_str() for rule in self.rules])
-        return self.compiler.chr_gen._generate_chr_block()
+        return self.compiler.chr_gen.chr_block_generator.generate()

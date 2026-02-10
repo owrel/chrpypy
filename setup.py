@@ -21,7 +21,7 @@ class CustomInstall(install):
 
         install_path = Path(self.install_lib) / "chrpypy"
         cache_path = Path(tempfile.gettempdir()) / "chrpp_cache"
-        build_path = cache_path / "build"
+        build_path = cache_path
 
         chrpp_path = os.getenv("CHRPP_PATH")
 
@@ -92,9 +92,11 @@ class CustomInstall(install):
                     text=True,
                 )
 
-                # Build
+                make = shutil.which("make")
+                if not make:
+                    raise RuntimeError("Did not find dependency: make")
                 subprocess.run(
-                    ["make", "-C", str(build_path)],
+                    [make, "-C", str(build_path)],
                     check=True,
                     capture_output=True,
                     text=True,
@@ -105,16 +107,19 @@ class CustomInstall(install):
                 shutil.copytree(cache_path, install_path / "chrpp")
                 print("CHRPP cached for future use")
 
-            src_file = Path("misc/python_callback_registry.hh").resolve()
+            src_dir = Path("misc").resolve()
             dest_dir = install_path / "chrpp" / "misc"
             dest_dir.mkdir(parents=True, exist_ok=True)
 
-            if src_file.exists():
-                shutil.copy(src_file, dest_dir / "python_callback_registry.hh")
-                print("Copied python_callback_registry.hh to chrpp/misc")
+            if src_dir.exists() and src_dir.is_dir():
+                for item in src_dir.iterdir():
+                    if item.is_file():
+                        shutil.copy(item, dest_dir / item.name)
+                        print(f"Copied {item.name} to chrpp/misc")
+                print("All misc files copied successfully.")
             else:
                 raise FileNotFoundError(
-                    f"Did not find python_callback_registry : {src_file}"
+                    f"Did not find misc directory: {src_dir}"
                 )
 
             print("Done.")

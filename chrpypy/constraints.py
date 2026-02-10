@@ -41,7 +41,9 @@ class Constraint:
         if not self.args:
             return f"{self.name}()"
         args_str = ", ".join(str(arg) for arg in self.args)
-        return f"{self.name}({args_str})#{self.pragma}"
+        if self.pragma:
+            return f"{self.name}({args_str})#{self.pragma}"
+        return f"{self.name}({args_str})"
 
     def __str__(self) -> str:
         return self.__repr__()
@@ -54,7 +56,9 @@ class Constraint:
         self.args = [ensure_expr(arg) for arg in args]
 
     def is_grounded(self) -> bool:
-        return all(expr.is_grounded() for expr in self.args)
+        return all(
+            expr.is_grounded() for expr in self.args if isinstance(expr, Symbol)
+        )
 
     def extract_values(self) -> list[Any]:
         if not self.is_grounded():
@@ -63,12 +67,15 @@ class Constraint:
             )
 
         def rec_extract_values(expr: Expression) -> list[Any]:
+            if isinstance(expr, LogicalVariable):
+                return [expr]
+
             if isinstance(expr, Constant):
                 return [expr.value]
 
-            if isinstance(expr, (LogicalVariable, Symbol)):
+            if isinstance(expr, Symbol):
                 raise TypeError(
-                    "Found variables/symbol in constraint that supposed to be grounded, check for bugs in is_grounded()"
+                    "Found symbol in constraint that supposed to be grounded, check for bugs in is_grounded()"
                 )
 
             if len(expr.children()) == 0:
@@ -145,10 +152,16 @@ class ConstraintStore:
         self.history.append(ret)
         return ret
 
-    def post(self, *args: Any) -> Constraint:
+    def post(self, *args: Any) -> list[Constraint]:
         c = self(*args)
         self.program.post(c)
-        return c
+        return self.program.get_constraints()
+
+    def posts(self, argss: list[Any]) -> list[Constraint]:
+        for args in argss:
+            c = self(*args)
+            self.program.post(c)
+        return self.program.get_constraints()
 
     def get(self) -> list[Constraint]:
         if self._cache:
@@ -159,7 +172,7 @@ class ConstraintStore:
         ]
         return self._cache
 
-    def from_chr_string(self, input: str) -> "Constraint":
+    def from_chr_string(self, input: str) -> Constraint:
         name = input[: input.find("#")]
         args = input[input.find("(") + 1 : -1].split(",")
         if len(self.types) == 0:
