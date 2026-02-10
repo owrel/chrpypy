@@ -1,16 +1,16 @@
 from chrpypy import (
     SUCCESS,
     Program,
-    Variable,
 )
 
 nb = 1000
 
-N = Variable("N")
-X = Variable("X")
-Y = Variable("Y")
-
 p = Program(name="primes")
+
+N = p.symbol("N")
+X = p.symbol("X")
+Y = p.symbol("Y")
+
 
 candidate = p.constraint_store("candidate", (int,))
 prime = p.constraint_store("prime", (int,))

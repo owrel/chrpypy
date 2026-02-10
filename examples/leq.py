@@ -1,17 +1,17 @@
-from chrpypy import SUCCESS, Program, Unification, Variable
+from chrpypy import SUCCESS, Program, Unification
 
 p = Program(
     name="LEQ",
     folder="leq",
-    verbose="DEBUG",
-    compile_on="FIRST_POST",
+    compile_on=Program.compile_trigger.COMPILE,
     use_cache=False,
 )
 leq = p.constraint_store("leq", (int, int))
 
-X = Variable("X")
-Y = Variable("Y")
-Z = Variable("Z")
+
+X = p.symbol("X")
+Y = p.symbol("Y")
+Z = p.symbol("Z")
 
 
 p.simplification(name="reflexivity", negative_head=leq(X, X), body=SUCCESS)

@@ -2,10 +2,10 @@ import logging
 
 from chrpypy import (
     SUCCESS,
+    CompileTrigger,
     FunctionCall,
     Program,
     SimpagationRule,
-    Variable,
 )
 
 logger = logging.getLogger(__name__)
@@ -13,14 +13,13 @@ logger = logging.getLogger(__name__)
 
 p = Program(
     name="PyCallback",
-    verbose="DEBUG",
     folder="pycallback",
     use_cache=True,
-    compile_on="compile",
+    compile_on=CompileTrigger.COMPILE,
 )
 cb = p.constraint_store("cb", (int,))
 
-X = Variable("X")
+X = p.symbol("X")
 p(
     SimpagationRule(
         negative_head=cb(X),
@@ -31,7 +30,7 @@ p(
 p.compile()
 p.register_function(
     "value",
-    lambda x: print(x),
+    print,
 )
 
 cb.post(0)

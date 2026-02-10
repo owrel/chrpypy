@@ -1,28 +1,33 @@
-from chrpypy import (
-    SUCCESS,
-    Program,
-    Variable,
+from chrpypy.expressions import Unification
+
+from chrpypy import SUCCESS, CompileTrigger, Program
+
+p = Program(
+    name="GCD", folder="gcd", use_cache=False, compile_on=CompileTrigger.COMPILE
 )
-
-p = Program(name="GCD", verbose="DEBUG", folder="gcd", use_cache=False)
 gcd = p.constraint_store("gcd", (int,))
+res = p.constraint_store("res", (int,))
 
-N = Variable("N")
-M = Variable("M")
+
+N = p.symbol("N")
+M = p.symbol("M")
+
 
 p.simpagation(negative_head=gcd(0), body=SUCCESS)
 p.simpagation(
-    negative_head=gcd(M),
     positive_head=gcd(N),
+    negative_head=gcd(M),
     guard=(N <= M),
     body=gcd(M - N),
 )
-
+p.simpagation(
+    positive_head=gcd(N), negative_head=res(M), body=Unification(M, N)
+)
+p.compile()
+Res = p.logicalvar("Res", int)
 gcd.post(182)
 gcd.post(144)
-
-print(p.statistics)
-print(p.statistics.total_time)
+res.post(Res)
 
 
-print(f"GCD: {gcd.get()}")
+print(f"GCD: {Res.get_value()}")
