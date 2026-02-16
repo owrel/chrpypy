@@ -15,7 +15,7 @@ class BindingGenerator:
         includes = """
             #include <pybind11/pybind11.h>
             #include <chrpp.hh>
-            #include <iostream>s
+            #include <iostream>
             #include <string>
             #include <any>
             #include <pybind11/stl.h>
