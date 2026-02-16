@@ -2,9 +2,7 @@ from chrpypy.expressions import Unification
 
 from chrpypy import SUCCESS, CompileTrigger, Program
 
-p = Program(
-    name="GCD", folder="gcd", use_cache=False, compile_on=CompileTrigger.COMPILE
-)
+p = Program(name="GCD", folder="gcd", compile_on=CompileTrigger.COMPILE)
 gcd = p.constraint_store("gcd", (int,))
 res = p.constraint_store("res", (int,))
 

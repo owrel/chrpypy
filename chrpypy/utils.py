@@ -8,9 +8,9 @@ class InfoWarningErrorFormatter(logging.Formatter):
         return f"{record.levelname}: {record.getMessage()}"
 
 
-def setup_logging() -> None:
+def setup_logging(logger_level=logging.INFO) -> None:  # noqa
     logger = logging.getLogger()
-    logger.setLevel(logging.DEBUG)
+    logger.setLevel(logger_level)
 
     debug_handler = logging.StreamHandler()
     debug_handler.setLevel(logging.DEBUG)

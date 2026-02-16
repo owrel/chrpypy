@@ -32,3 +32,15 @@ If you encounter a compilation error during installation (for example, due to mi
 ```bash
 CHRPP_IGNORE_CACHE=1 pip install . -v
 ```
+
+## Installing in Google Collab
+
+Due to difference in handling environment, some tweaks in installing have to be done, use the following line :
+
+```bash
+!git clone https://github.com/owrel/chrpypy.git install_chrpypy ; cd install_chrpypy ; pip install --no-build-isolation --no-cache-dir .
+```
+
+Then use `chrpypy` as intended.
+
+> Note that there is a known behavior that Google collab is aksing you to reaload session upon installation.

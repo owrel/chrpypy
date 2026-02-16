@@ -201,7 +201,7 @@ class Compiler:
         cache_exists, current_hash = self._check_cached_compilation()
 
         if self.use_cache and cache_exists:
-            logger.info(
+            logger.debug(
                 f"Found cached compilation with matching rules hash: {current_hash}"
             )
             self.current_hash_folder = self.program.folder / current_hash
@@ -227,7 +227,7 @@ class Compiler:
 
         chrpp_gen_start = time.time()
 
-        logger.info("Generating CHRPP file")
+        logger.debug("Generating CHRPP file")
         generated_chrpp_path = (
             self.current_hash_folder / f"{self.program.name}-pychr.chrpp"
         )
@@ -243,7 +243,7 @@ class Compiler:
 
         chrpp_compile_start = time.time()
 
-        logger.info("Compiling CHRPP file")
+        logger.debug("Compiling CHRPP file")
         cmd = [
             self.program.chrppc_path,
             str(generated_chrpp_path),
@@ -274,7 +274,7 @@ class Compiler:
 
         wrapper_start = time.time()
 
-        logger.info("Generating bindings file")
+        logger.debug("Generating bindings file")
 
         bindings_path = (
             self.current_hash_folder / f"{self.program.name}_bindings.cpp"
@@ -294,7 +294,7 @@ class Compiler:
         if self.program._retrieve_callbacks():
             include_source.append(str(self.program.helper_hh))
 
-        logger.info("Compiling C++ shared library")
+        logger.debug("Compiling C++ shared library")
 
         cmd = [
             shutil.which("g++"),

@@ -1,8 +1,6 @@
 from typing import TYPE_CHECKING
 
-from ..rules import Rule
 from ..typesystem import TypeSystem
-from .constraint_formatter import ConstraintFormatter
 
 if TYPE_CHECKING:
     from ..program import Program
@@ -17,37 +15,7 @@ class CHRBlockGenerator:
         for cs in self.program.constraint_stores.values():
             signature = f"{cs.name}({', '.join([TypeSystem.python_to_chr(python_t) for python_t in cs.types])})"
             signatures.add(signature)
-        return list(signatures)
-
-    def _generate_rule_string(self, rule: Rule) -> str:
-        rule_str = "\t\t"
-
-        if rule.name:
-            rule_str += f"{rule.name} @ "
-        else:
-            rule_str += f"rule{rule._id} @ "
-
-        if rule.negative_head and rule.positive_head:
-            positive = ConstraintFormatter.format_head(rule.positive_head)
-            negative = ConstraintFormatter.format_head(rule.negative_head)
-            rule_str += f"{positive} \\ {negative} <=> "
-        elif rule.negative_head and not rule.positive_head:
-            rule_str += (
-                f"{ConstraintFormatter.format_head(rule.negative_head)} <=> "
-            )
-        elif rule.positive_head:
-            rule_str += (
-                f"{ConstraintFormatter.format_head(rule.positive_head)} ==> "
-            )
-
-        if rule.guard:
-            guard_str = rule.guard.to_chrpp()
-            rule_str += f"{guard_str} | "
-
-        rule_str += ConstraintFormatter.format_body(rule.body)
-        rule_str += ";;\n"
-
-        return rule_str
+        return sorted(signatures)
 
     def generate(self) -> str:
         signatures = self._get_constraint_signatures()
@@ -61,7 +29,7 @@ class CHRBlockGenerator:
         chr_block += f"\t<chr_constraint> {', '.join(signatures)}\n"
 
         for rule in self.program.rules:
-            chr_block += self._generate_rule_string(rule)
+            chr_block += rule._generate_chr_rule_string()
 
         chr_block += "\t</CHR>\n"
         chr_block += "*/"

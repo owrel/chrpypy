@@ -27,6 +27,62 @@ GuardType = Guard | list[Guard] | set[Guard] | None
 BodyType = list[Constraint | Success | Failure | FunctionCall | Unification]
 
 
+def format_constraint(constraint: Constraint) -> str:
+    if not constraint.args:
+        return f"{constraint.name}()"
+
+    args_str = ", ".join(arg.to_chrpp() for arg in constraint.args)
+    if constraint.pragma:
+        return f"{constraint.name}({args_str})#{constraint.pragma}"
+    return f"{constraint.name}({args_str})"
+
+
+def format_head(head: HeadType) -> str:
+    if head is None:
+        return ""
+
+    if isinstance(head, list):
+        if not head:
+            return ""
+        return ", ".join(format_constraint(c) for c in head)
+
+    if isinstance(head, Constraint):
+        return format_constraint(head)
+
+    return ""
+
+
+def format_body(body: BodyType) -> str:
+    if len(body) == 0:
+        return "success()"
+
+    if isinstance(body, (Success, Failure)):
+        return body.to_chrpp()
+
+    if isinstance(body, FunctionCall):
+        return body.to_chrpp()
+
+    if isinstance(body, list):
+        if not body:
+            return "success()"
+
+        formatted_parts = []
+        for item in body:
+            if isinstance(item, Constraint):
+                formatted_parts.append(format_constraint(item))
+            elif isinstance(
+                item, (Success, Failure, FunctionCall, Unification)
+            ):
+                formatted_parts.append(item.to_chrpp())
+
+        return ", ".join(formatted_parts)
+
+    if isinstance(body, Constraint):
+        return format_constraint(body)
+
+    return "success()"
+
+
 def _normalize_list(item: Any) -> list[Constraint]:
     if item is None:
         return []
@@ -122,6 +178,35 @@ class Rule:
         constraints.extend(self.negative_head)
         constraints.extend([c for c in self.body if isinstance(c, Constraint)])
         return constraints
+
+    def _generate_chr_rule_string(self) -> str:
+        rule_str = "\t\t"
+
+        if self.name:
+            rule_str += f"{self.name} @ "
+        else:
+            rule_str += f"rule{self._id} @ "
+
+        if self.negative_head and self.positive_head:
+            positive = format_head(self.positive_head)
+            negative = format_head(self.negative_head)
+            rule_str += f"{positive} \\ {negative} <=> "
+        elif self.negative_head and not self.positive_head:
+            rule_str += f"{format_head(self.negative_head)} <=> "
+        elif self.positive_head:
+            rule_str += f"{format_head(self.positive_head)} ==> "
+
+        if self.guard:
+            guard_str = self.guard.to_chrpp()
+            rule_str += f"{guard_str} | "
+
+        rule_str += format_body(self.body)
+        rule_str += ";;\n"
+
+        return rule_str
+
+    def __repr__(self) -> str:
+        return self._generate_chr_rule_string()
 
 
 class SimplificationRule(Rule):
