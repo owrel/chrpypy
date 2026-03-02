@@ -95,8 +95,7 @@ class Constraint:
         return ret
 
     def __iter__(self) -> Generator[Any]:
-        values = self.extract_values()
-        yield from values
+        yield from self.extract_values()
 
 
 class ConstraintStore:

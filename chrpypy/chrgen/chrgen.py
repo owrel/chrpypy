@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from .binding_generator import BindingGenerator
-from .chr_block_generator import CHRBlockGenerator
+from .chrpp_generator import CHRPPGenerator
 
 if TYPE_CHECKING:
     from ..program import Program
@@ -11,7 +11,7 @@ if TYPE_CHECKING:
 class CHRGenerator:
     def __init__(self, program: "Program"):
         self.program = program
-        self.chr_block_generator = CHRBlockGenerator(program)
+        self.chr_block_generator = CHRPPGenerator(program)
         self.binding_generator = BindingGenerator(program)
 
     @staticmethod

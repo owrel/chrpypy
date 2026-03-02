@@ -172,5 +172,3 @@ for x in range(200):
     show_grid(cell.get())
     tick.post()
     sleep(0.08)
-
-print(p.statistics.execution_time)

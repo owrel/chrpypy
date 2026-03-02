@@ -6,7 +6,7 @@ if TYPE_CHECKING:
     from ..program import Program
 
 
-class CHRBlockGenerator:
+class CHRPPGenerator:
     def __init__(self, program: "Program"):
         self.program = program
 
