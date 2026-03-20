@@ -10,7 +10,7 @@ from setuptools import find_packages, setup
 from setuptools.command.install import install
 
 CHRPP_REPO = "https://gitlab.com/vynce/chrpp"
-CHRPP_COMMIT = "d26d6c17cb35d04526014bc21468a4"
+CHRPP_COMMIT = "eb411d7abac4a9d4fe2a84a9de29cb48123aa040"
 IGNORE_CACHE = bool(int(os.getenv("CHRPP_IGNORE_CACHE", "0")))
 
 

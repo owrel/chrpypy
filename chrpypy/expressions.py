@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, override
+from typing import TYPE_CHECKING, Any
 
 from .typesystem import TypeSystem
 
@@ -47,7 +47,7 @@ class Expression(ABC):
     def node_label(self) -> str:
         return self.__class__.__name__
 
-    def node_symbol(self) -> str | None:
+    def node_symbol(self) -> "str | None":
         return None
 
     def __hash__(self) -> int:
@@ -86,10 +86,10 @@ class Expression(ABC):
     def __neg__(self):
         return UnaryOp("-", self)
 
-    def __eq__(self, other: object):  # type: ignore
+    def __eq__(self, other: object):
         return Comparison("==", self, ensure_expr(other))
 
-    def __ne__(self, other: object):  # type: ignore
+    def __ne__(self, other: object):
         return Comparison("!=", self, ensure_expr(other))
 
     def __lt__(self, other: Any):
@@ -130,7 +130,6 @@ class LogicalVariable(Expression):
     def node_symbol(self) -> str | None:
         return self.name
 
-    @override
     def is_grounded(self) -> bool:
         return False
 
@@ -171,7 +170,6 @@ class Symbol(Expression):
     def node_symbol(self) -> str | None:
         return self.name
 
-    @override
     def is_grounded(self) -> bool:
         return False
 
@@ -195,7 +193,6 @@ class Anonymous(Expression):
     def node_symbol(self) -> str | None:
         return "_"
 
-    @override
     def is_grounded(self) -> bool:
         return False
 
@@ -232,7 +229,6 @@ class Constant(Expression):
             return f'"{self.value}"'
         return str(self.value)
 
-    @override
     def is_grounded(self) -> bool:
         return True
 
@@ -447,7 +443,7 @@ class Unification(Expression):
         right = self.right.to_chrpp()
         return f"{left} %= {right}"
 
-    def children(self) -> list[Expression]:  # type: ignore[override]
+    def children(self) -> list[Expression]:
         return [self.left, self.right]
 
     def node_label(self) -> str:

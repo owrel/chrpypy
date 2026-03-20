@@ -1,5 +1,5 @@
 from itertools import count
-from typing import Any
+from typing import Any, TypeAlias
 
 from .constraints import Constraint
 from .expressions import (
@@ -12,8 +12,8 @@ from .expressions import (
     Unification,
 )
 
-AcceptedHeadType = list[Constraint] | Constraint | None
-AcceptedBodyType = (
+AcceptedHeadType: TypeAlias = list[Constraint] | Constraint | None
+AcceptedBodyType: TypeAlias = (
     list[Constraint | Success | Failure | FunctionCall | Unification]
     | FunctionCall
     | Constraint
@@ -22,9 +22,11 @@ AcceptedBodyType = (
     | Unification
     | None
 )
-HeadType = list[Constraint]
-GuardType = Guard | list[Guard] | set[Guard] | None
-BodyType = list[Constraint | Success | Failure | FunctionCall | Unification]
+HeadType: TypeAlias = list[Constraint]
+GuardType: TypeAlias = Guard | list[Guard] | set[Guard] | None
+BodyType: TypeAlias = list[
+    Constraint | Success | Failure | FunctionCall | Unification
+]
 
 
 def format_constraint(constraint: Constraint) -> str:
@@ -83,7 +85,7 @@ def format_body(body: BodyType) -> str:
     return "success()"
 
 
-def _normalize_list(item: Any) -> list[Constraint]:
+def _normalize_list(item: Any) -> list[Any]:
     if item is None:
         return []
     if isinstance(item, list):
@@ -206,7 +208,7 @@ class Rule:
         return rule_str
 
     def __repr__(self) -> str:
-        return self._generate_chr_rule_string()
+        return self._generate_chr_rule_string().strip()
 
 
 class SimplificationRule(Rule):

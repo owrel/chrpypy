@@ -23,10 +23,6 @@ public:
     }
     if (py::isinstance<py::str>(src)) {
       std::string s = src.cast<std::string>();
-      if (!s.empty() && std::isupper(static_cast<unsigned char>(s[0]))) {
-        value = std::make_shared<LogicalVarArg>(s, "std::string");
-        return true;
-      }
       value = std::make_shared<GroundArg<std::string>>(s);
       return true;
     }

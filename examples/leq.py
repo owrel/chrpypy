@@ -6,7 +6,7 @@ p = Program(
     compile_on=Program.compile_trigger.COMPILE,
     use_cache=False,
 )
-leq = p.constraint_store("leq", (int, int))
+leq = p.constraint_store("leq", (str, str))
 
 
 X = p.symbol("X")
@@ -32,7 +32,7 @@ p.propagation(
 
 p.compile()
 
-leq.post(1, 2)
-leq.post(2, 3)
-leq.post(2, 5)
+leq.post("1", "2")
+leq.post("2", "3")
+leq.post("2", "5")
 print(leq.get())

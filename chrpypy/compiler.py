@@ -249,6 +249,7 @@ class Compiler:
             str(generated_chrpp_path),
             "-o",
             str(self.current_hash_folder),
+            "--disable-line_error",
         ]
         logger.debug(f"CHRPP compiler command:\n {' '.join(cmd)}")
         try:
@@ -295,9 +296,12 @@ class Compiler:
             include_source.append(str(self.program.helper_hh))
 
         logger.debug("Compiling C++ shared library")
+        gpp = shutil.which("g++")
+        if gpp is None:
+            raise RuntimeError("Could not find g++")
 
-        cmd = [
-            shutil.which("g++"),
+        cmd: list[str] = [
+            gpp,
             "-shared",
             "-fPIC",
             *include_source,

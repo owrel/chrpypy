@@ -40,7 +40,7 @@ def bool_caster(input: str) -> bool:
     if input == "0":
         return False
     raise ValueError(
-        f"Could not cast  {input} of type {type(input)} to bool"
+        f"Could not cast {input} of type {type(input)} to bool"
     ) from None
 
 
@@ -49,7 +49,7 @@ class TypeSystem:
     _mapping: dict[type, tuple[str, str]] = {
         int: ("?int", "int"),
         float: ("?double", "double"),
-        str: ("std::string", "std::string"),
+        str: ("?std::string", "std::string"),
         bool: ("?bool", "bool"),
     }
 
