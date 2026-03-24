@@ -7,7 +7,7 @@ name = "chrpypy"
 version = "0.1"
 description = "A Python implementation of CHR using chrpp as backend"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.14"
 authors = [
   { name = "BARICHARD Vincent", email = "vincent.barichard@univ-angers.fr" },
   { name = "GENEST David", email = "david.genest@univ-angers.fr" },

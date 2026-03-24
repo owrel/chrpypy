@@ -13,6 +13,13 @@ class CHRPPGenerator:
     def _get_constraint_signatures(self) -> list[str]:
         signatures = set()
         for cs in self.program.constraint_stores.values():
+            print(id(cs))
+            print(cs.initialized)
+            if not cs.initialized:
+                raise RuntimeError(
+                    f"The constraint store {cs.name} is not initialized. Please provided concrete type description or make sure that type can be DIRECLTY infered from the args passed in the constraint"
+                )
+
             signature = f"{cs.name}({', '.join([TypeSystem.python_to_chr(python_t) for python_t in cs.types])})"
             signatures.add(signature)
         return sorted(signatures)
@@ -29,7 +36,7 @@ class CHRPPGenerator:
         chr_block += f"\t<chr_constraint> {', '.join(signatures)}\n"
 
         for rule in self.program.rules:
-            chr_block += rule._generate_chr_rule_string()
+            chr_block += "\t\t" + rule._generate_chr_rule_string()
 
         chr_block += "\t</CHR>\n"
         chr_block += "*/"

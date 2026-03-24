@@ -10,7 +10,7 @@ from typing import Any
 
 from .compiler import Compiler
 from .constraints import Constraint, ConstraintOrigin, ConstraintStore
-from .expressions import FunctionCall, LogicalVariable, Symbol
+from .expressions import ANON, FunctionCall, LogicalVariable, Symbol
 from .rules import (
     AcceptedBodyType,
     AcceptedHeadType,
@@ -90,7 +90,7 @@ class Program:
         folder: Path | str | None = None,
         *,
         use_cache: bool = True,
-        compile_on: CompileTrigger = CompileTrigger.FIRST_POST,
+        compile_on: CompileTrigger | str = CompileTrigger.FIRST_POST,
         max_history: int = 50,
     ) -> None:
         self.id = Program._id
@@ -107,8 +107,10 @@ class Program:
         self.constraint_stores: dict[str, ConstraintStore] = {}
         self.logical_variable_registry: dict[str, LogicalVariable] = {}
         self.compiler = Compiler(self, max_history, use_cache=use_cache)
-
-        self.compile_on = compile_on
+        if isinstance(compile_on, str):
+            self.compile_on = CompileTrigger(compile_on.upper())
+        else:
+            self.compile_on = compile_on
 
         self.rules: list[Rule] = []
         self._first_post_done = False
@@ -221,16 +223,21 @@ class Program:
         return Symbol(name)
 
     def constraint_store(
-        self, name: str, types: list[Any] | tuple[Any, ...] | None = None
+        self,
+        name: str,
+        types: list[Any] | tuple[Any, ...] | None = None,
+        *,
+        lazy: bool = True,
     ) -> ConstraintStore:
         if name in self.constraint_stores:
             raise ValueError(
                 f"Trying to re_attribute constraint store : '{name}'"
             )
+        self.constraint_stores[name] = (
+            c := ConstraintStore(name, self, types, lazy=lazy)
+        )
 
-        self.constraint_stores[name] = ConstraintStore(name, self, types)
-
-        return self.constraint_stores[name]
+        return c
 
     def post(self, constraint: Constraint) -> None:
         if (
@@ -318,3 +325,39 @@ class Program:
         if not chrpp_format:
             return "\n".join([rule.to_str() for rule in self.rules])
         return self.compiler.chr_gen.chr_block_generator.generate()
+
+    def _set_reset_systems(self, cs: ConstraintStore) -> None:
+        if not cs.initialized and len(cs.types) == 0:
+            raise RuntimeError(
+                "Can not create reset system while constraint is not inialized"
+            )
+
+        if cs._get_associated_reset_constraint_name() in self.constraint_stores:
+            raise RuntimeError(
+                f"Found a constraint store with reserved name {cs._get_associated_reset_constraint_name()}"
+            )
+
+        self.constraint_stores[cs._get_associated_reset_constraint_name()] = (
+            ConstraintStore(
+                cs._get_associated_reset_constraint_name(),
+                self,
+                [],
+                lazy=False,
+            )
+        )
+
+        self.rules.extend(
+            [
+                SimpagationRule(
+                    positive_head=self.constraint_stores[
+                        cs._get_associated_reset_constraint_name()
+                    ](),
+                    negative_head=cs(*[ANON for _ in range(len(cs.types))]),
+                ),
+                SimplificationRule(
+                    negative_head=self.constraint_stores[
+                        cs._get_associated_reset_constraint_name()
+                    ](),
+                ),
+            ]
+        )

@@ -5,15 +5,19 @@ from chrpypy import (
 
 nb = 1000
 
-p = Program(name="primes")
+p = Program(name="primes", folder="primes")
 
 N = p.symbol("N")
 X = p.symbol("X")
 Y = p.symbol("Y")
 
 
-candidate = p.constraint_store("candidate", (int,))
-prime = p.constraint_store("prime", (int,))
+candidate = p.constraint_store(
+    "candidate",
+)
+prime = p.constraint_store("prime", [int])
+
+print(prime)
 
 p.simpagation(
     negative_head=candidate(N), guard=N > 1, body=[candidate(N - 1), prime(N)]
@@ -26,6 +30,7 @@ p.simpagation(
     body=SUCCESS,
 )
 
+print(prime)
 candidate.post(nb)
 print(p.statistics)
 print(p.statistics.total_time)

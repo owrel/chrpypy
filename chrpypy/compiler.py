@@ -178,6 +178,8 @@ class Compiler:
         logger.debug("Starting compilation process")
         time_lap = time.time()
 
+        # Create compilation log file
+
         logger.debug("Verifying if paths exist...")
         required_paths = {
             "chrpp_path": Path(self.program.chrpp_path),
@@ -214,12 +216,19 @@ class Compiler:
             return
 
         self.current_hash_folder = self.program.folder / current_hash
+        log_file = self.current_hash_folder / "compilation.log"
+        log_file.parent.mkdir(parents=True, exist_ok=True)
+
+        def write_to_log(message: str) -> None:
+            with open(log_file, "a", encoding="utf-8") as f:
+                f.write(message + "\n")
 
         if self.current_hash_folder.exists():
             shutil.rmtree(self.current_hash_folder)
         self.current_hash_folder.mkdir(parents=True, exist_ok=True)
 
         logger.debug(f"Building in hash folder: {self.current_hash_folder}")
+        write_to_log(f"Building in hash folder: {self.current_hash_folder}")
 
         if not self.current_hash_folder.is_dir():
             raise ValueError("Hash folder must be a directory")
@@ -235,6 +244,7 @@ class Compiler:
         self.chr_gen.generate_chrpp_file(generated_chrpp_path)
 
         logger.debug(f"Generated CHRPP file at {generated_chrpp_path}")
+        write_to_log(f"Generated CHRPP file at {generated_chrpp_path}")
 
         chrpp_gen_end = time.time()
         self.program.statistics.generation_time += (
@@ -252,17 +262,32 @@ class Compiler:
             "--disable-line_error",
         ]
         logger.debug(f"CHRPP compiler command:\n {' '.join(cmd)}")
+        write_to_log(f"CHRPP compiler command: {' '.join(cmd)}")
+
         try:
-            subprocess.run(
+            result = subprocess.run(
                 cmd,
                 check=True,
                 capture_output=True,
+                text=True,
             )
+            # Log any warnings or output
+            if result.stdout:
+                write_to_log(f"CHRPP compiler output:\n{result.stdout}")
+            if result.stderr:
+                write_to_log(
+                    f"CHRPP compiler warnings/errors:\n{result.stderr}"
+                )
         except subprocess.CalledProcessError as e:
             chrpp_end = time.time()
             self.program.statistics.chrppc_compilation_time += (
                 chrpp_end - chrpp_compile_start
             )
+            write_to_log(f"CHRPP compilation failed with error: {e}")
+            if e.stdout:
+                write_to_log(f"CHRPP compiler output:\n{e.stdout}")
+            if e.stderr:
+                write_to_log(f"CHRPP compiler warnings/errors:\n{e.stderr}")
             self._handle_compilation_error(e, "CHRPP")
             raise RuntimeError(
                 f"CHRPP compilation failed with error: {e}"
@@ -282,6 +307,7 @@ class Compiler:
         )
         self.chr_gen.generate_bindings_file(bindings_path)
         logger.debug(f"Generated bindings file at {bindings_path}")
+        write_to_log(f"Generated bindings file at {bindings_path}")
 
         wrapper_end = time.time()
         self.program.statistics.generation_time += wrapper_end - wrapper_start
@@ -318,8 +344,16 @@ class Compiler:
         ]
 
         logger.debug(f"C++ compiler command:\n {' '.join(cmd)}")
+        write_to_log(f"C++ compiler command: {' '.join(cmd)}")
+
         try:
-            subprocess.run(cmd, check=True, capture_output=True)
+            result = subprocess.run(
+                cmd, check=True, capture_output=True, text=True
+            )
+            if result.stdout:
+                write_to_log(f"C++ compiler output:\n{result.stdout}")
+            if result.stderr:
+                write_to_log(f"C++ compiler warnings/errors:\n{result.stderr}")
         except subprocess.CalledProcessError as e:
             so_end = time.time()
             self.program.statistics.cpp_compilation_time += so_end - so_start
@@ -338,6 +372,8 @@ class Compiler:
         self.wrapper = self.import_wrapper()
         mist_end = time.time()
         self.program.statistics.misc_time += mist_end - mist_start
+        write_to_log("Successfully imported wrapper module")
+
         if load_previous_stores:
             for constraint_store_name, saved_constraints in save.items():
                 self.program.constraint_stores[constraint_store_name].posts(
@@ -345,3 +381,7 @@ class Compiler:
                 )
 
         logger.debug("Compilation process completed successfully")
+        write_to_log("Compilation process completed successfully")
+        write_to_log(
+            f"Total compilation time: {time.time() - time_lap:.2f} seconds"
+        )

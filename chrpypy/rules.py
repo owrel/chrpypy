@@ -182,7 +182,7 @@ class Rule:
         return constraints
 
     def _generate_chr_rule_string(self) -> str:
-        rule_str = "\t\t"
+        rule_str = ""
 
         if self.name:
             rule_str += f"{self.name} @ "
@@ -208,7 +208,7 @@ class Rule:
         return rule_str
 
     def __repr__(self) -> str:
-        return self._generate_chr_rule_string().strip()
+        return self._generate_chr_rule_string()
 
 
 class SimplificationRule(Rule):
