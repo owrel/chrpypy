@@ -1,27 +1,32 @@
-from chrpypy import Program
+from chrpypy import Constant, Program
 
 program = Program(
     "ColorPalette", "cp", compile_on=Program.compile_trigger.COMPILE
-)
-color = program.constraint_store("color")
+)  # Compile trigger allows us to control when the compilation occurs
+print(program)
+
+color = program.constraint_store(
+    "color", [str]
+)  # We define here the name of the constraint store (and the name of following generated constraints) and the arity and types
+print(color)
 
 
 program.simplification(
-    name="redplusblue",
-    negative_head=[color("red"), color("blue")],
-    body=[color("purple")],
+    name="purple",
+    negative_head=[color(Constant("red")), color(Constant("blue"))],
+    body=[color(Constant("purple"))],
 )
 
+program.simplification(
+    name="orange",
+    negative_head=[color(Constant("red")), color(Constant("yellow"))],
+    body=[color(Constant("orange"))],
+)
 
-program._set_reset_systems(color)
+program.simplification(
+    name="green",
+    negative_head=[color(Constant("blue")), color(Constant("yellow"))],
+    body=[color(Constant("green"))],
+)
 
 program.compile()
-color.post("red")
-color.post("blue")
-
-print(color.get())
-print(program.compiled)
-print(color.reset())
-color.post("blue")
-
-print(program.get_constraints())

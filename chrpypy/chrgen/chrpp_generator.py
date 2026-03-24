@@ -13,8 +13,6 @@ class CHRPPGenerator:
     def _get_constraint_signatures(self) -> list[str]:
         signatures = set()
         for cs in self.program.constraint_stores.values():
-            print(id(cs))
-            print(cs.initialized)
             if not cs.initialized:
                 raise RuntimeError(
                     f"The constraint store {cs.name} is not initialized. Please provided concrete type description or make sure that type can be DIRECLTY infered from the args passed in the constraint"
