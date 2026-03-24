@@ -115,6 +115,7 @@ class ConstraintStore:
         self.name = name
         self.program = program
         self._cache = []
+        self.history: list[Constraint] = []
 
         if self.name == self.program.name:
             raise ValueError(
@@ -148,8 +149,6 @@ class ConstraintStore:
                 self.initialized = True
                 self.types = list(types)
                 self.program._set_reset_systems(self)
-
-        self.history: list[Constraint] = []
 
     def handle_lazy_init(self, args: list[Any]) -> None:
         if self.initialized:
