@@ -249,6 +249,7 @@ class ConstraintStore:
             self.handle_lazy_init(list(args))
         c = self(*args)
         self.program.post(c)
+        self._cache = []
         return self.program.get_constraints()
 
     def posts(self, argss: list[Any]) -> list[Constraint]:
@@ -258,6 +259,7 @@ class ConstraintStore:
             c_list.append(c)
         for c in c_list:
             self.program.post(c)
+        self._cache = []
         return self.program.get_constraints()
 
     def get(self) -> list[Constraint]:
@@ -289,7 +291,7 @@ class ConstraintStore:
         return self.initialized
 
     def __str__(self) -> str:
-        if self.program.compiled:
+        if self.program.compiler.wrapper is not None:
             cs_content = ", ".join(str(c) for c in self.get())
         else:
             cs_content = "~[]"

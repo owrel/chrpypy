@@ -33,6 +33,7 @@ program.simplification(
 program.compile()
 
 red.post()
-yellow.post()
+print(blue.post())
+print(purple)
 
 print(program)

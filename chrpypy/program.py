@@ -376,3 +376,6 @@ class Program:
         for rcs in self._reset_stores:
             ret.extend(rcs.post())
         return ret
+
+    def __repr__(self) -> str:
+        return self.__str__()
