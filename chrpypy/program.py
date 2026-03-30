@@ -107,8 +107,9 @@ class Program:
         self.constraint_stores: dict[str, ConstraintStore] = {}
         self.logical_variable_registry: dict[str, LogicalVariable] = {}
         self.compiler = Compiler(self, max_history, use_cache=use_cache)
+
         if isinstance(compile_on, str):
-            self.compile_on = CompileTrigger(compile_on.upper())
+            self.compile_on = CompileTrigger(compile_on.lower())
         else:
             self.compile_on = compile_on
 

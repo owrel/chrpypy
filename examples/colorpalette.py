@@ -1,7 +1,7 @@
 from chrpypy import Program
 
 program = Program(
-    "ColorPalette", "cp", compile_on=Program.compile_trigger.COMPILE
+    "ColorPalette", "cp", compile_on="compile"
 )  # Compile trigger allows us to control when the compilation occurs
 
 red = program.constraint_store("red", [])
