@@ -361,3 +361,9 @@ class Program:
                 ),
             ]
         )
+
+    def __str__(self) -> str:
+        if self.compiler.wrapper is None:
+            return str([])
+
+        return str(self.get_constraints())

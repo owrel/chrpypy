@@ -125,7 +125,10 @@ class ConstraintStore:
         if not types:
             self.types = []
             if lazy:
-                self.initialized = False
+                if isinstance(types, list):
+                    self.initialized = True
+                else:
+                    self.initialized = False
             else:
                 self.initialized = True
         else:
@@ -206,9 +209,10 @@ class ConstraintStore:
                         print(type(arg))
 
         one_none = any(True if t is None else False for t in self.types)  # noqa
-
+        print(one_none, not one_none)
         if not one_none:
             self.initialized = True
+            print(self.initialized)
             self.program._set_reset_systems(self)
 
     def __call__(self, *args: Any, pragma: str | None = None) -> Constraint:
