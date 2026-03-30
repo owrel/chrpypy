@@ -113,6 +113,7 @@ class Program:
             self.compile_on = compile_on
 
         self.rules: list[Rule] = []
+        self._reset_stores: list[ConstraintStore] = []
         self._first_post_done = False
 
     def _retrieve_callbacks(self) -> list[FunctionCall]:
@@ -336,15 +337,17 @@ class Program:
             raise RuntimeError(
                 f"Found a constraint store with reserved name {cs._get_associated_reset_constraint_name()}"
             )
-
-        self.constraint_stores[cs._get_associated_reset_constraint_name()] = (
-            ConstraintStore(
-                cs._get_associated_reset_constraint_name(),
-                self,
-                [],
-                lazy=False,
-            )
+        reset_constraint_store = ConstraintStore(
+            cs._get_associated_reset_constraint_name(),
+            self,
+            [],
+            lazy=False,
         )
+
+        self.constraint_stores[reset_constraint_store.name] = (
+            reset_constraint_store
+        )
+        self._reset_stores.append(reset_constraint_store)
 
         self.rules.extend(
             [
@@ -367,3 +370,9 @@ class Program:
             return str([])
 
         return str(self.get_constraints())
+
+    def reset(self) -> list[Constraint]:
+        ret = []
+        for rcs in self._reset_stores:
+            ret.extend(rcs.post())
+        return ret

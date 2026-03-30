@@ -292,7 +292,7 @@ class ConstraintStore:
         if self.program.compiled:
             cs_content = ", ".join(str(c) for c in self.get())
         else:
-            cs_content = "No value yet (program not compiled)"
+            cs_content = "~[]"
 
         return f"{self.name}({', '.join(t.__name__ if t is not None else str(t) for t in self.types)}) : {cs_content}"
 
