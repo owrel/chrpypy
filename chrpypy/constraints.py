@@ -250,7 +250,7 @@ class ConstraintStore:
         c = self(*args)
         self.program.post(c)
         self._cache = []
-        return self.program.get_constraints()
+        return self.program.store()
 
     def posts(self, argss: list[Any]) -> list[Constraint]:
         c_list = []
@@ -260,15 +260,13 @@ class ConstraintStore:
         for c in c_list:
             self.program.post(c)
         self._cache = []
-        return self.program.get_constraints()
+        return self.program.store()
 
     def get(self) -> list[Constraint]:
         if self._cache:
             return self._cache
 
-        self._cache = [
-            c for c in self.program.get_constraints() if c.name == self.name
-        ]
+        self._cache = [c for c in self.program.store() if c.name == self.name]
         return self._cache
 
     def from_chr_string(self, input: str) -> Constraint:
@@ -291,7 +289,7 @@ class ConstraintStore:
         return self.initialized
 
     def __str__(self) -> str:
-        if self.program.compiler.wrapper is not None:
+        if self.program._compiler.wrapper is not None:
             cs_content = ", ".join(str(c) for c in self.get())
         else:
             cs_content = "~[]"
@@ -305,7 +303,7 @@ class ConstraintStore:
         return f"reset{self.name}"
 
     def reset(self) -> list[Constraint]:
-        self.program.constraint_stores[
+        self.program._store_map[
             self._get_associated_reset_constraint_name()
         ].post()
         return self.get()

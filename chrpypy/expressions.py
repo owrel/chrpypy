@@ -134,15 +134,15 @@ class LogicalVariable(Expression):
         return False
 
     def get_value(self) -> Any:
-        if self.program.compiler.wrapper is not None:
+        if self.program._compiler.wrapper is not None:
             if not hasattr(
-                self.program.compiler.wrapper,
+                self.program._compiler.wrapper,
                 f"get_logical_var_{self._type.__name__}",
             ):
                 print(f"get_logical_var_{self._type.__name__} not found ")
             return self._type(
                 getattr(
-                    self.program.compiler.wrapper,
+                    self.program._compiler.wrapper,
                     f"get_logical_var_{self._type.__name__}",
                 )(self.name)
             )
@@ -420,7 +420,7 @@ class Comparison(Guard, Expression):
         op = self.OP_MAPPING.get(self.op, self.op)
         return f"{left} {op} {right}"
 
-    def children(self) -> list[Expression]:  # type: ignore[override]
+    def children(self) -> list[Expression]:  # type: ignore
         return [self.left, self.right]
 
     def node_label(self) -> str:

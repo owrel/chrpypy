@@ -5,7 +5,6 @@ from chrpypy import (
     CompileTrigger,
     FunctionCall,
     Program,
-    SimpagationRule,
 )
 
 logger = logging.getLogger(__name__)
@@ -17,14 +16,12 @@ p = Program(
     use_cache=True,
     compile_on=CompileTrigger.COMPILE,
 )
-cb = p.constraint_store("cb", (int,))
+cb = p.constraint("cb", (int,))
 
 X = p.symbol("X")
-p(
-    SimpagationRule(
-        negative_head=cb(X),
-        body=[FunctionCall("value", X), SUCCESS],
-    ),
+p.simpagation(
+    negative_head=cb(X),
+    body=[FunctionCall("value", X), SUCCESS],
 )
 
 p.compile()
@@ -34,5 +31,5 @@ p.register_function(
 )
 
 cb.post(0)
-logger.info(p.statistics)
-logger.info(p.statistics.total_time)
+logger.info(p._statistics)
+logger.info(p._statistics.total_time)

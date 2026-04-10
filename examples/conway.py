@@ -15,17 +15,17 @@ x_size = -40, 40
 y_size = -40, 40
 
 
-cell = p.constraint_store("cell", (int, int))
-next_gen_cell = p.constraint_store("next_gen_cell", (int, int))
+cell = p.constraint("cell", (int, int))
+next_gen_cell = p.constraint("next_gen_cell", (int, int))
 
-count = p.constraint_store("count", (int, int, int, bool))
-neighbor = p.constraint_store("neighbor", (int, int, int, int))
+count = p.constraint("count", (int, int, int, bool))
+neighbor = p.constraint("neighbor", (int, int, int, int))
 
-tick = p.constraint_store("tick", ())
-tick_count = p.constraint_store("tick_count", ())
-tick_gen = p.constraint_store("tick_gen", ())
-tick_clear = p.constraint_store("tick_clear", ())
-tick_next = p.constraint_store("tick_next", ())
+tick = p.constraint("tick", ())
+tick_count = p.constraint("tick_count", ())
+tick_gen = p.constraint("tick_gen", ())
+tick_clear = p.constraint("tick_clear", ())
+tick_next = p.constraint("tick_next", ())
 
 
 X = Symbol("X")

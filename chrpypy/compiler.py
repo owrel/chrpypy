@@ -49,7 +49,7 @@ class Compiler:
 
     def _check_cached_compilation(self) -> tuple[bool, str]:
         current_hash = self._compute_hash()
-        hash_folder = self.program.folder / current_hash
+        hash_folder = self.program._folder / current_hash
 
         if hash_folder.exists():
             target_so = hash_folder / f"{self.program.name}.so"
@@ -62,12 +62,12 @@ class Compiler:
         return False, current_hash
 
     def _cleanup_old_history(self) -> None:
-        if not self.program.folder.exists():
+        if not self.program._folder.exists():
             return
 
         hash_dirs = [
             (d, d.stat().st_mtime)
-            for d in self.program.folder.iterdir()
+            for d in self.program._folder.iterdir()
             if d.is_dir()
         ]
 
@@ -122,7 +122,7 @@ class Compiler:
             raise RuntimeError("Did not find register function in wrapper")
 
     def _extract_files(self, chrpp_file: Path) -> list[Path]:
-        cmd = [self.program.chrpp_extract_files, str(chrpp_file)]
+        cmd = [self.program._chrpp_extract_files, str(chrpp_file)]
         logger.debug(f"Extracting files with command: {' '.join(cmd)}")
         try:
             res = subprocess.run(
@@ -145,7 +145,7 @@ class Compiler:
             error_folder_name = (
                 f"compilation_error_{self.current_hash_folder.name}"
             )
-            error_folder = self.program.folder / error_folder_name
+            error_folder = self.program._folder / error_folder_name
 
             if error_folder.exists():
                 shutil.rmtree(error_folder)
@@ -165,13 +165,9 @@ class Compiler:
 
     def compile(self, *, load_previous_stores: bool = True) -> None:
         save: dict[str, list[Constraint]] = {}
-        if (
-            load_previous_stores
-            and self.compiled
-            and self.program.constraint_stores
-        ):
-            for constraint_store_name in self.program.constraint_stores:
-                save[constraint_store_name] = self.program.constraint_stores[
+        if load_previous_stores and self.compiled and self.program._store_map:
+            for constraint_store_name in self.program._store_map:
+                save[constraint_store_name] = self.program._store_map[
                     constraint_store_name
                 ].get()
 
@@ -182,11 +178,11 @@ class Compiler:
 
         logger.debug("Verifying if paths exist...")
         required_paths = {
-            "chrpp_path": Path(self.program.chrpp_path),
-            "chrppc_path": Path(self.program.chrppc_path),
-            "chrpp_runtime": Path(self.program.chrpp_runtime),
-            "chrpp_extract_files": Path(self.program.chrpp_extract_files),
-            "helper_hh": Path(self.program.helper_hh),
+            "chrpp_path": Path(self.program._chrpp_path),
+            "chrppc_path": Path(self.program._chrppc_path),
+            "chrpp_runtime": Path(self.program._chrpp_runtime),
+            "chrpp_extract_files": Path(self.program._chrpp_extract_files),
+            "helper_hh": Path(self.program._helper_hh),
         }
 
         for name, path in required_paths.items():
@@ -197,8 +193,8 @@ class Compiler:
             logger.debug(f"Verified {name}: {path}")
 
         logger.debug("Setting up build directory")
-        if not self.program.folder.exists():
-            self.program.folder.mkdir(parents=True)
+        if not self.program._folder.exists():
+            self.program._folder.mkdir(parents=True)
 
         cache_exists, current_hash = self._check_cached_compilation()
 
@@ -206,16 +202,16 @@ class Compiler:
             logger.debug(
                 f"Found cached compilation with matching rules hash: {current_hash}"
             )
-            self.current_hash_folder = self.program.folder / current_hash
+            self.current_hash_folder = self.program._folder / current_hash
             self.compiled = True
             mist_start = time.time()
             self.wrapper = self.import_wrapper()
             mist_end = time.time()
-            self.program.statistics.misc_time += mist_end - mist_start
+            self.program._statistics.misc_time += mist_end - mist_start
             logger.debug("Using cached compilation")
             return
 
-        self.current_hash_folder = self.program.folder / current_hash
+        self.current_hash_folder = self.program._folder / current_hash
         log_file = self.current_hash_folder / "compilation.log"
         log_file.parent.mkdir(parents=True, exist_ok=True)
 
@@ -232,7 +228,7 @@ class Compiler:
 
         if not self.current_hash_folder.is_dir():
             raise ValueError("Hash folder must be a directory")
-        self.program.statistics.misc_time += time.time() - time_lap
+        self.program._statistics.misc_time += time.time() - time_lap
 
         chrpp_gen_start = time.time()
 
@@ -247,7 +243,7 @@ class Compiler:
         write_to_log(f"Generated CHRPP file at {generated_chrpp_path}")
 
         chrpp_gen_end = time.time()
-        self.program.statistics.generation_time += (
+        self.program._statistics.generation_time += (
             chrpp_gen_end - chrpp_gen_start
         )
 
@@ -255,7 +251,7 @@ class Compiler:
 
         logger.debug("Compiling CHRPP file")
         cmd = [
-            self.program.chrppc_path,
+            self.program._chrppc_path,
             str(generated_chrpp_path),
             "-o",
             str(self.current_hash_folder),
@@ -280,7 +276,7 @@ class Compiler:
                 )
         except subprocess.CalledProcessError as e:
             chrpp_end = time.time()
-            self.program.statistics.chrppc_compilation_time += (
+            self.program._statistics.chrppc_compilation_time += (
                 chrpp_end - chrpp_compile_start
             )
             write_to_log(f"CHRPP compilation failed with error: {e}")
@@ -294,7 +290,7 @@ class Compiler:
             ) from e
 
         chrpp_end = time.time()
-        self.program.statistics.chrppc_compilation_time += (
+        self.program._statistics.chrppc_compilation_time += (
             chrpp_end - chrpp_compile_start
         )
 
@@ -310,7 +306,7 @@ class Compiler:
         write_to_log(f"Generated bindings file at {bindings_path}")
 
         wrapper_end = time.time()
-        self.program.statistics.generation_time += wrapper_end - wrapper_start
+        self.program._statistics.generation_time += wrapper_end - wrapper_start
 
         so_start = time.time()
 
@@ -319,7 +315,7 @@ class Compiler:
         ]
 
         if self.program._retrieve_callbacks():
-            include_source.append(str(self.program.helper_hh))
+            include_source.append(str(self.program._helper_hh))
 
         logger.debug("Compiling C++ shared library")
         gpp = shutil.which("g++")
@@ -335,7 +331,7 @@ class Compiler:
             "-I",
             sysconfig.get_paths()["include"],
             "-I",
-            self.program.chrpp_runtime,
+            self.program._chrpp_runtime,
             "-I",
             pybind11.get_include(),
             "-o",
@@ -356,13 +352,13 @@ class Compiler:
                 write_to_log(f"C++ compiler warnings/errors:\n{result.stderr}")
         except subprocess.CalledProcessError as e:
             so_end = time.time()
-            self.program.statistics.cpp_compilation_time += so_end - so_start
+            self.program._statistics.cpp_compilation_time += so_end - so_start
             self._handle_compilation_error(e, "C++")
             raise RuntimeError(f"C++ compilation failed with error: {e}") from e
 
         so_end = time.time()
-        self.program.statistics.cpp_compilation_time += so_end - so_start
-        self.program.statistics.compiles += 1
+        self.program._statistics.cpp_compilation_time += so_end - so_start
+        self.program._statistics.compiles += 1
         self.compiled = True
 
         self._cleanup_old_history()
@@ -371,12 +367,12 @@ class Compiler:
         mist_start = time.time()
         self.wrapper = self.import_wrapper()
         mist_end = time.time()
-        self.program.statistics.misc_time += mist_end - mist_start
+        self.program._statistics.misc_time += mist_end - mist_start
         write_to_log("Successfully imported wrapper module")
 
         if load_previous_stores:
             for constraint_store_name, saved_constraints in save.items():
-                self.program.constraint_stores[constraint_store_name].posts(
+                self.program._store_map[constraint_store_name].posts(
                     saved_constraints
                 )
 

@@ -4,12 +4,12 @@ program = Program(
     "ColorPalette", "cp", compile_on="compile"
 )  # Compile trigger allows us to control when the compilation occurs
 
-red = program.constraint_store("red", [])
-blue = program.constraint_store("blue", [])
-yellow = program.constraint_store("yellow", [])
-purple = program.constraint_store("purple", [])
-orange = program.constraint_store("orange", [])
-green = program.constraint_store("green", [])
+red = program.constraint("red", [])
+blue = program.constraint("blue", [])
+yellow = program.constraint("yellow", [])
+purple = program.constraint("purple", [])
+orange = program.constraint("orange", [])
+green = program.constraint("green", [])
 
 
 program.simplification(

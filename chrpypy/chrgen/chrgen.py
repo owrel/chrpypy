@@ -29,7 +29,7 @@ class CHRGenerator:
         code = f"""#include <iostream>
             #include <string>
             #include <chrpp.hh>
-            #include <{self.program.helper_hh}>
+            #include <{self.program._helper_hh}>
             """
 
         code += self.chr_block_generator.generate()

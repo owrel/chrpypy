@@ -3,8 +3,8 @@ from chrpypy.expressions import Unification
 from chrpypy import SUCCESS, CompileTrigger, Program
 
 p = Program(name="GCD", folder="gcd", compile_on=CompileTrigger.COMPILE)
-gcd = p.constraint_store("gcd", (int,))
-res = p.constraint_store("res", (int,))
+gcd = p.constraint("gcd", (int,))
+res = p.constraint("res", (int,))
 
 
 N = p.symbol("N")

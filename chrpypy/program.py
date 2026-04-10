@@ -59,27 +59,27 @@ logger = logging.getLogger(__name__)
 
 class Program:
     _id = 0
-    chrpp_path = os.getenv(
+    _chrpp_path = os.getenv(
         "CHRPP_PATH",
         str((Path(__file__).resolve().parent / "chrpp").resolve()),
     )
 
-    chrppc_path = str(
-        (Path(chrpp_path).resolve() / "chrppc" / "chrppc").resolve()
+    _chrppc_path = str(
+        (Path(_chrpp_path).resolve() / "chrppc" / "chrppc").resolve()
     )
 
-    chrpp_runtime = str((Path(chrpp_path).resolve() / "runtime").resolve())
+    _chrpp_runtime = str((Path(_chrpp_path).resolve() / "runtime").resolve())
 
-    chrpp_extract_files = str(
-        (Path(chrpp_path).resolve() / "misc" / "chrpp_extract_files").resolve()
+    _chrpp_extract_files = str(
+        (Path(_chrpp_path).resolve() / "misc" / "chrpp_extract_files").resolve()
     )
 
-    helper_hh = str(
-        (Path(chrpp_path).resolve() / "misc" / "helper.hh").resolve()
+    _helper_hh = str(
+        (Path(_chrpp_path).resolve() / "misc" / "helper.hh").resolve()
     )
 
-    helper_core_hh = str(
-        (Path(chrpp_path).resolve() / "misc" / "helper_core.hh").resolve()
+    _helper_core_hh = str(
+        (Path(_chrpp_path).resolve() / "misc" / "helper_core.hh").resolve()
     )
 
     compile_trigger = CompileTrigger
@@ -93,56 +93,107 @@ class Program:
         compile_on: CompileTrigger | str = CompileTrigger.FIRST_POST,
         max_history: int = 50,
     ) -> None:
-        self.id = Program._id
+        self._id = Program._id
         Program._id += 1
-        self.statistics = Statistics()
+
         self.name = name or f"program{Program._id}"
+
         if folder is None:
             tempdir = tempfile.gettempdir()
-            self.folder = Path(tempdir) / "chrpypy" / self.name
+            self._folder = Path(tempdir) / "chrpypy" / self.name
         else:
-            self.folder = Path(folder).resolve()
+            self._folder = Path(folder).resolve()
 
-        self.compiled = False
-        self.constraint_stores: dict[str, ConstraintStore] = {}
-        self.logical_variable_registry: dict[str, LogicalVariable] = {}
-        self.compiler = Compiler(self, max_history, use_cache=use_cache)
+        self._compiled = False
+        self._store_map: dict[str, ConstraintStore] = {}
+        self._logical_variable_map: dict[str, LogicalVariable] = {}
+        self._compiler = Compiler(self, max_history, use_cache=use_cache)
 
         if isinstance(compile_on, str):
-            self.compile_on = CompileTrigger(compile_on.lower())
+            self._compile_on = CompileTrigger(compile_on.lower())
         else:
-            self.compile_on = compile_on
+            self._compile_on = compile_on
 
-        self.rules: list[Rule] = []
+        self._statistics = Statistics()
+        self._rules: list[Rule] = []
         self._reset_stores: list[ConstraintStore] = []
         self._first_post_done = False
 
+    @property
+    def statistics(self) -> Statistics:
+        return self._statistics
+
+    def _set_reset_systems(self, cs: ConstraintStore) -> None:
+        if not cs.initialized and len(cs.types) == 0:
+            raise RuntimeError(
+                "Can not create reset system while constraint is not inialized"
+            )
+
+        if cs._get_associated_reset_constraint_name() in self._store_map:
+            raise RuntimeError(
+                f"Found a constraint store with reserved name {cs._get_associated_reset_constraint_name()}"
+            )
+        reset_constraint_store = ConstraintStore(
+            cs._get_associated_reset_constraint_name(),
+            self,
+            [],
+            lazy=False,
+        )
+
+        self._store_map[reset_constraint_store.name] = reset_constraint_store
+        self._reset_stores.append(reset_constraint_store)
+
+        self._rules.extend(
+            [
+                SimpagationRule(
+                    positive_head=self._store_map[
+                        cs._get_associated_reset_constraint_name()
+                    ](),
+                    negative_head=cs(*[ANON for _ in range(len(cs.types))]),
+                ),
+                SimplificationRule(
+                    negative_head=self._store_map[
+                        cs._get_associated_reset_constraint_name()
+                    ](),
+                ),
+            ]
+        )
+
     def _retrieve_callbacks(self) -> list[FunctionCall]:
         ret = []
-        for rule in self.rules:
+        for rule in self._rules:
             ret.extend(
                 expr for expr in rule.body if isinstance(expr, FunctionCall)
             )
 
         return ret
 
-    def __call__(
+    def __str__(self) -> str:
+        if self._compiler.wrapper is None:
+            return str([])
+
+        return str(self.store())
+
+    def __repr__(self) -> str:
+        return self.__str__()
+
+    def add_rule(
         self, *args: Rule | list[Rule] | tuple[Rule], hold_compile: bool = False
-    ):
+    ) -> None:
         for arg in args:
             if isinstance(arg, Rule):
-                self.rules.append(arg)
+                self._rules.append(arg)
             elif isinstance(arg, (list, tuple)):
                 for rule in arg:
                     if not isinstance(rule, Rule):
                         raise TypeError(f"Invalid argument type: {type(rule)}")
-                self.rules.extend(arg)
+                self._rules.extend(arg)
             else:
                 raise TypeError(f"Invalid argument type: {type(arg)}")
 
-        if not hold_compile and self.compile_on == CompileTrigger.RULE:
-            self.compiler.compile()
-            self.compiled = True
+        if not hold_compile and self._compile_on == CompileTrigger.RULE:
+            self._compiler.compile()
+            self._compiled = True
 
     def simplification(
         self,
@@ -159,7 +210,7 @@ class Program:
             body=body,
             name=name,
         )
-        self(rule, hold_compile=hold_compile)
+        self.add_rule(rule, hold_compile=hold_compile)
         return rule
 
     def propagation(
@@ -177,7 +228,7 @@ class Program:
             body=body,
             name=name,
         )
-        self(rule, hold_compile=hold_compile)
+        self.add_rule(rule, hold_compile=hold_compile)
         return rule
 
     def simpagation(
@@ -197,45 +248,43 @@ class Program:
             body=body,
             name=name,
         )
-        self(rule, hold_compile=hold_compile)
+        self.add_rule(rule, hold_compile=hold_compile)
         return rule
 
     def logicalvar(self, name: str, _type: Any) -> LogicalVariable:
 
-        self.logical_variable_registry[name] = LogicalVariable(
-            name, _type, self
-        )
+        self._logical_variable_map[name] = LogicalVariable(name, _type, self)
 
         if hasattr(
-            self.compiler.wrapper,
-            f"set_logical_var_{self.logical_variable_registry[name]._type.__name__}",
+            self._compiler.wrapper,
+            f"set_logical_var_{self._logical_variable_map[name]._type.__name__}",
         ):
             getattr(
-                self.compiler.wrapper,
-                f"set_logical_var_{self.logical_variable_registry[name]._type.__name__}",
+                self._compiler.wrapper,
+                f"set_logical_var_{self._logical_variable_map[name]._type.__name__}",
             )(name)
         else:
             raise TypeError(
                 f"Cound not find function to create logical var of type {_type.__name__}"
             )
 
-        return self.logical_variable_registry[name]
+        return self._logical_variable_map[name]
 
     def symbol(self, name: str) -> Symbol:
         return Symbol(name)
 
-    def constraint_store(
+    def constraint(
         self,
         name: str,
         types: list[Any] | tuple[Any, ...] | None = None,
         *,
         lazy: bool = True,
     ) -> ConstraintStore:
-        if name in self.constraint_stores:
+        if name in self._store_map:
             raise ValueError(
                 f"Trying to re_attribute constraint store : '{name}'"
             )
-        self.constraint_stores[name] = (
+        self._store_map[name] = (
             c := ConstraintStore(name, self, types, lazy=lazy)
         )
 
@@ -244,23 +293,21 @@ class Program:
     def post(self, constraint: Constraint) -> None:
         if (
             not self._first_post_done
-            and self.compile_on == CompileTrigger.FIRST_POST
+            and self._compile_on == CompileTrigger.FIRST_POST
         ):
-            if not self.compiled:
-                self.compiler.compile()
-                self.compiled = True
+            if not self._compiled:
+                self._compiler.compile()
+                self._compiled = True
             self._first_post_done = True
 
         if hasattr(
-            self.compiler.wrapper,
+            self._compiler.wrapper,
             f"add_{constraint.name}",
         ):
-            self.statistics.calls += 1
+            self._statistics.calls += 1
             start_execution_time = time.time()
 
             values = constraint.extract_values()
-
-            # eval(f"self.wrapper.add_{constraint.name}({' ,'.join([str(arg) for arg in constraint.args])})")
 
             args = []
 
@@ -271,112 +318,60 @@ class Program:
                     args.append(
                         TypeSystem.cast(
                             val,
-                            self.constraint_stores[constraint.name].types[idx],
+                            self._store_map[constraint.name].types[idx],
                         )
                     )
 
-            getattr(self.compiler.wrapper, f"add_{constraint.name}")(*args)
+            getattr(self._compiler.wrapper, f"add_{constraint.name}")(*args)
 
-            for cs in self.constraint_stores.values():
+            for cs in self._store_map.values():
                 cs.reset_cache()
 
             mem = time.time() - start_execution_time
-            self.statistics.execution_time += mem
-            self.statistics.last_execution_time = mem
+            self._statistics.execution_time += mem
+            self._statistics.last_execution_time = mem
         else:
             raise ValueError(
                 f"Constraint {constraint.name} not found, compile the the program with Constraint definition first"
             )
 
     def register_function(self, name: str, callback: Callable) -> None:
-        if not self.compiler.wrapper:
+        if not self._compiler.wrapper:
             raise RuntimeError(
                 "Registering function require that the program is compiled first"
             )
-        if hasattr(self.compiler.wrapper, "register_function"):
-            getattr(self.compiler.wrapper, "register_function")(name, callback)  # noqa
+        if hasattr(self._compiler.wrapper, "register_function"):
+            getattr(self._compiler.wrapper, "register_function")(name, callback)  # noqa
         else:
             raise RuntimeError("Did not find register function in wrapper")
 
-    def get_constraints(self) -> list[Constraint]:
-        if self.compiler.wrapper is None:
+    def store(self) -> list[Constraint]:
+        if self._compiler.wrapper is None:
             raise ValueError("Wrapper is None, cannot get constraints")
 
         list_str_constraint: list[str] = sorted(
-            self.compiler.wrapper.get_constraint_store()
+            self._compiler.wrapper.get_constraint_store()
         )
         ret = []
         for str_constraint in list_str_constraint:
-            constraint = self.constraint_stores[
+            constraint = self._store_map[
                 str_constraint[: str_constraint.find("#")]
             ].from_chr_string(str_constraint)
             constraint._origin = ConstraintOrigin.CHRPP
             ret.append(constraint)
         return ret
 
-    def get_constraint_types(self, name: str) -> list:
-        cs = self.constraint_stores[name]
-        if cs.types is None:
-            return []
-        return list(cs.types)
-
     def compile(self) -> None:
-        self.compiler.compile()
+        self._compiler.compile()
 
-    def print(self, *, chrpp_format: bool = False) -> str:
-        if not chrpp_format:
-            return "\n".join([rule.to_str() for rule in self.rules])
-        return self.compiler.chr_gen.chr_block_generator.generate()
+    def to_chr(self) -> str:
+        return self._compiler.chr_gen.chr_block_generator.generate()
 
-    def _set_reset_systems(self, cs: ConstraintStore) -> None:
-        if not cs.initialized and len(cs.types) == 0:
-            raise RuntimeError(
-                "Can not create reset system while constraint is not inialized"
-            )
-
-        if cs._get_associated_reset_constraint_name() in self.constraint_stores:
-            raise RuntimeError(
-                f"Found a constraint store with reserved name {cs._get_associated_reset_constraint_name()}"
-            )
-        reset_constraint_store = ConstraintStore(
-            cs._get_associated_reset_constraint_name(),
-            self,
-            [],
-            lazy=False,
-        )
-
-        self.constraint_stores[reset_constraint_store.name] = (
-            reset_constraint_store
-        )
-        self._reset_stores.append(reset_constraint_store)
-
-        self.rules.extend(
-            [
-                SimpagationRule(
-                    positive_head=self.constraint_stores[
-                        cs._get_associated_reset_constraint_name()
-                    ](),
-                    negative_head=cs(*[ANON for _ in range(len(cs.types))]),
-                ),
-                SimplificationRule(
-                    negative_head=self.constraint_stores[
-                        cs._get_associated_reset_constraint_name()
-                    ](),
-                ),
-            ]
-        )
-
-    def __str__(self) -> str:
-        if self.compiler.wrapper is None:
-            return str([])
-
-        return str(self.get_constraints())
+    def to_chrpp(self) -> str:
+        return "\n".join([rule.to_str() for rule in self._rules])
 
     def reset(self) -> list[Constraint]:
         ret = []
         for rcs in self._reset_stores:
             ret.extend(rcs.post())
         return ret
-
-    def __repr__(self) -> str:
-        return self.__str__()

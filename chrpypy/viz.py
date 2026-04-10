@@ -42,7 +42,7 @@ class Renderer:
     def render_png(self) -> bytes:
         return self._source.pipe()
 
-    def render_png_repl(self) -> Image:  # type: ignore
+    def render_png_repl(self) -> Image:
         return Image(self._source.pipe())
 
 
@@ -267,7 +267,7 @@ class _Parser:
 
     @staticmethod
     def parse_program(program: "Program") -> Renderer:
-        return _Parser.parse_rules_and_constraints(program.rules, [])
+        return _Parser.parse_rules_and_constraints(program._rules, [])
 
 
 def viz(

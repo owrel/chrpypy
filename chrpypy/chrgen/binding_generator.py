@@ -24,12 +24,12 @@ class BindingGenerator:
             #include <typeinfo>
         """
 
-        includes += f"#include <{self.program.compiler.current_hash_folder / self.program.name}-pychr{self.program.name}.hh>\n"
+        includes += f"#include <{self.program._compiler.current_hash_folder / self.program.name}-pychr{self.program.name}.hh>\n"
 
         if self.program._retrieve_callbacks():
-            includes += f"#include <{self.program.helper_hh}>\n"
+            includes += f"#include <{self.program._helper_hh}>\n"
         else:
-            includes += f"#include <{self.program.helper_core_hh}>\n"
+            includes += f"#include <{self.program._helper_core_hh}>\n"
 
         includes += "namespace py = pybind11;\n\n"
         return includes
@@ -167,7 +167,9 @@ class BindingGenerator:
 
     def _generate_constraint_adders(self) -> str:
         adders = ""
-        for cs in self.program.constraint_stores.values():
+        for cs in sorted(
+            self.program._store_map.values(), key=lambda x: x.name
+        ):
             if len(cs.types) == 0:
                 adders += f"void add_{cs.name}() {{ space->{cs.name}(); }}\n\n"
             else:
@@ -292,7 +294,7 @@ class BindingGenerator:
                      py::arg("name"), py::arg("func"))
             """
 
-        for cs in self.program.constraint_stores.values():
+        for cs in self.program._store_map.values():
             module += self._generate_constraint_binding(cs)
 
         module += ";\n}\n"

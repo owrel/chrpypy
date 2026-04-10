@@ -12,10 +12,8 @@ X = p.symbol("X")
 Y = p.symbol("Y")
 
 
-candidate = p.constraint_store(
-    "candidate",
-)
-prime = p.constraint_store("prime", [int])
+candidate = p.constraint("candidate")
+prime = p.constraint("prime", [int])
 
 print(prime)
 
@@ -32,6 +30,6 @@ p.simpagation(
 
 print(prime)
 candidate.post(nb)
-print(p.statistics)
-print(p.statistics.total_time)
+print(p._statistics)
+print(p._statistics.total_time)
 print(f"Primes up to {nb}:", prime.get())

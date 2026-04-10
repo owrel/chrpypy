@@ -6,7 +6,7 @@ p = Program(
     compile_on=Program.compile_trigger.COMPILE,
     use_cache=False,
 )
-leq = p.constraint_store("leq", (str, str))
+leq = p.constraint("leq", (str, str))
 
 
 X = p.symbol("X")
