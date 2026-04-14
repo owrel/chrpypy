@@ -285,9 +285,10 @@ class Compiler:
             if e.stderr:
                 write_to_log(f"CHRPP compiler warnings/errors:\n{e.stderr}")
             self._handle_compilation_error(e, "CHRPP")
-            raise RuntimeError(
-                f"CHRPP compilation failed with error: {e}"
-            ) from e
+            error_message = f"CHRPP compilation failed with error:\n{e}\n"
+            if e.stderr:
+                error_message += f"Details:\n{e.stderr}"
+            raise RuntimeError(error_message) from e
 
         chrpp_end = time.time()
         self.program._statistics.chrppc_compilation_time += (
@@ -329,6 +330,8 @@ class Compiler:
             *include_source,
             str(bindings_path),
             "-I",
+            str(self.current_hash_folder),
+            "-I",
             sysconfig.get_paths()["include"],
             "-I",
             self.program._chrpp_runtime,
@@ -354,7 +357,10 @@ class Compiler:
             so_end = time.time()
             self.program._statistics.cpp_compilation_time += so_end - so_start
             self._handle_compilation_error(e, "C++")
-            raise RuntimeError(f"C++ compilation failed with error: {e}") from e
+            error_message = f"C++ compilation failed with error:\n{e}\n"
+            if e.stderr:
+                error_message += f"Details:\n{e.stderr}"
+            raise RuntimeError(error_message) from e
 
         so_end = time.time()
         self.program._statistics.cpp_compilation_time += so_end - so_start

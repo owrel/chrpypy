@@ -24,7 +24,9 @@ class BindingGenerator:
             #include <typeinfo>
         """
 
-        includes += f"#include <{self.program._compiler.current_hash_folder / self.program.name}-pychr{self.program.name}.hh>\n"
+        includes += (
+            f"#include <{self.program.name}-pychr{self.program.name}.hh>\n"
+        )
 
         if self.program._retrieve_callbacks():
             includes += f"#include <{self.program._helper_hh}>\n"
