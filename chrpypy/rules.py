@@ -133,16 +133,12 @@ class Rule:
         guard: "Guard | None" = None,
         body: BodyType | None = None,
     ) -> None:
-        self.name = name
+        self._id = next(Rule._rule_counter)
+        self.name = name or f"Rule{self._id}"
         self.positive_head = positive_head or []
         self.negative_head = negative_head or []
         self.guard = guard
         self.body = body or []
-        self._id = next(Rule._rule_counter)
-
-    def with_name(self, name: str) -> "Rule":
-        self.name = name
-        return self
 
     def _format_body(self) -> str:
         if not self.body:
@@ -153,6 +149,9 @@ class Rule:
         return ", ".join(str(c) for c in self.body)
 
     def to_str(self) -> str:
+        return self.to_chrpp()
+
+    def to_chr(self) -> str:
         if not (self.positive_head or self.negative_head):
             raise ValueError(
                 "Rule must have either a positive head or a negative head"
@@ -181,7 +180,7 @@ class Rule:
         constraints.extend([c for c in self.body if isinstance(c, Constraint)])
         return constraints
 
-    def _generate_chr_rule_string(self) -> str:
+    def to_chrpp(self) -> str:
         rule_str = ""
 
         if self.name:
@@ -208,7 +207,7 @@ class Rule:
         return rule_str
 
     def __repr__(self) -> str:
-        return self._generate_chr_rule_string()
+        return self.to_str()
 
 
 class SimplificationRule(Rule):

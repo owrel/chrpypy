@@ -1,8 +1,6 @@
 from chrpypy import Program
 
-program = Program(
-    "ColorPalette", "cp", compile_on="compile"
-)  # Compile trigger allows us to control when the compilation occurs
+program = Program("ColorPalette", "cp", compile_on="compile")
 
 red = program.constraint("red", [])
 blue = program.constraint("blue", [])
@@ -30,10 +28,12 @@ program.simplification(
     body=[green()],
 )
 
-program.compile()
+print(program._rules)
 
-red.post()
-print(blue.post())
-print(purple)
+# program.compile()
 
-print(program)
+# red.post()
+# print(blue.post())
+# print(purple)
+
+# print(program)

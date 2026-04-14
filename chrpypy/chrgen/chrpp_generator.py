@@ -36,7 +36,7 @@ class CHRPPGenerator:
         chr_block += f"\t<chr_constraint> {', '.join(signatures)}\n"
 
         for rule in self.program._rules:
-            chr_block += "\t\t" + rule._generate_chr_rule_string()
+            chr_block += "\t\t" + rule.to_chrpp()
 
         chr_block += "\t</CHR>\n"
         chr_block += "*/"

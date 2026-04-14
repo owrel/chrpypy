@@ -42,7 +42,7 @@ class Compiler:
         )
 
     def _compute_hash(self) -> str:
-        hash_obj = hashlib.sha256()
+        hash_obj = hashlib.sha256(usedforsecurity=False)
         hash_obj.update(self.chr_gen.generate_chrpp().encode("utf-8"))
         hash_obj.update(self.chr_gen.generate_bindings().encode("utf-8"))
         return hash_obj.hexdigest()

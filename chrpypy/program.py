@@ -92,11 +92,14 @@ class Program:
         use_cache: bool = True,
         compile_on: CompileTrigger | str = CompileTrigger.FIRST_POST,
         max_history: int = 50,
+        auto_add_reset_rules: bool = True,
     ) -> None:
         self._id = Program._id
         Program._id += 1
 
         self.name = name or f"program{Program._id}"
+
+        self._auto_add_reset_rules = auto_add_reset_rules
 
         if folder is None:
             tempdir = tempfile.gettempdir()
@@ -138,6 +141,7 @@ class Program:
             self,
             [],
             lazy=False,
+            with_reset=False,
         )
 
         self._store_map[reset_constraint_store.name] = reset_constraint_store
@@ -146,12 +150,14 @@ class Program:
         self._rules.extend(
             [
                 SimpagationRule(
+                    name=f"{reset_constraint_store.name}_consume",
                     positive_head=self._store_map[
                         cs._get_associated_reset_constraint_name()
                     ](),
                     negative_head=cs(*[ANON for _ in range(len(cs.types))]),
                 ),
                 SimplificationRule(
+                    name=f"{reset_constraint_store.name}_stop_consume",
                     negative_head=self._store_map[
                         cs._get_associated_reset_constraint_name()
                     ](),
@@ -252,7 +258,6 @@ class Program:
         return rule
 
     def logicalvar(self, name: str, _type: Any) -> LogicalVariable:
-
         self._logical_variable_map[name] = LogicalVariable(name, _type, self)
 
         if hasattr(

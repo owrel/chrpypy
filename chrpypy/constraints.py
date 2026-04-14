@@ -109,6 +109,7 @@ class ConstraintStore:
         types: tuple[Any] | list[Any] | None = None,
         *,
         lazy: bool = True,
+        with_reset: bool = True,
     ):
 
         self.types: list[Any]
@@ -116,6 +117,7 @@ class ConstraintStore:
         self.program = program
         self._cache = []
         self.history: list[Constraint] = []
+        self._with_reset = with_reset
 
         if self.name == self.program.name:
             raise ValueError(
@@ -127,10 +129,14 @@ class ConstraintStore:
             if lazy:
                 if isinstance(types, list):
                     self.initialized = True
+                    if self.program._auto_add_reset_rules and self._with_reset:
+                        self.program._set_reset_systems(self)
                 else:
                     self.initialized = False
             else:
                 self.initialized = True
+                if self.program._auto_add_reset_rules and self._with_reset:
+                    self.program._set_reset_systems(self)
         else:
             for idx, arg in enumerate(types):
                 if arg is None or arg not in TypeSystem.python_types():
@@ -151,7 +157,8 @@ class ConstraintStore:
             else:
                 self.initialized = True
                 self.types = list(types)
-                self.program._set_reset_systems(self)
+                if self.program._auto_add_reset_rules and self._with_reset:
+                    self.program._set_reset_systems(self)
 
     def handle_lazy_init(self, args: list[Any]) -> None:
         if self.initialized:
@@ -209,11 +216,10 @@ class ConstraintStore:
                         print(type(arg))
 
         one_none = any(True if t is None else False for t in self.types)  # noqa
-        print(one_none, not one_none)
         if not one_none:
             self.initialized = True
-            print(self.initialized)
-            self.program._set_reset_systems(self)
+            if self.program._auto_add_reset_rules and self._with_reset:
+                self.program._set_reset_systems(self)
 
     def __call__(self, *args: Any, pragma: str | None = None) -> Constraint:
         if not self.initialized:
@@ -300,7 +306,7 @@ class ConstraintStore:
         return self.__str__()
 
     def _get_associated_reset_constraint_name(self) -> str:
-        return f"reset{self.name}"
+        return f"reset_{self.name}"
 
     def reset(self) -> list[Constraint]:
         self.program._store_map[
