@@ -75,7 +75,7 @@ class _Parser:
             content: str, parent_id: str | None = None, shape: str = "box"
         ) -> str:
             node_id = f"node{counter[0]}"
-            counter[0] += 1
+            counter[0] += 12
 
             nodes.append(f'    {node_id} [label="{content}", shape={shape}];')
 

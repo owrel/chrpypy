@@ -165,6 +165,13 @@ class BindingGenerator:
             setters += f"    void set_logical_var_{python_type.__name__}(const std::string& name) {{\n"
             setters += f"        logical_vars_{python_type.__name__}[name] = chr::Logical_var<{cpp_type}>();\n"
             setters += "    }\n\n"
+
+        for python_type in TypeSystem.python_types():
+            cpp_type = TypeSystem.python_to_cpp(python_type)
+            setters += f"    void unify_logical_var_{python_type.__name__}(const std::string& name1, const std::string& name2) {{\n"
+            setters += f"""\n        auto lv1 = get_logical_var_{python_type.__name__}(name1);\n        auto lv2 = get_logical_var_{python_type.__name__}(name2);\n        lv1 %= lv2;\n"""
+            setters += "    }\n\n"
+
         return setters
 
     def _generate_constraint_adders(self) -> str:
@@ -287,7 +294,10 @@ class BindingGenerator:
                      py::arg("name"))
                 .def("set_logical_var_{python_type.__name__}", &{self.program.name}Wrapper::set_logical_var_{python_type.__name__},
                      "Create and store a logical variable of type {cpp_type} with given name ",
-                     py::arg("name"))\n"""
+                     py::arg("name"))
+                .def("unify_logical_var_{python_type.__name__}", &{self.program.name}Wrapper::unify_logical_var_{python_type.__name__},
+                     "Unify two logical variables of type {cpp_type}",
+                     py::arg("name1"), py::arg("name2"))\n"""
 
         if self.program._retrieve_callbacks():
             module += f"""

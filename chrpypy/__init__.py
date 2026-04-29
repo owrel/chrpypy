@@ -38,6 +38,7 @@ __all__ = [
     "ConstraintStore",
     "Expression",
     "FunctionCall",
+    "Ground",
     "Guard",
     "LogicalVariable",
     "Not",
