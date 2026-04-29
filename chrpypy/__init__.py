@@ -10,6 +10,7 @@ from .expressions import (
     Constant,
     Expression,
     FunctionCall,
+    Ground,
     Guard,
     LogicalVariable,
     Not,

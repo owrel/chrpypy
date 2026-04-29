@@ -133,6 +133,22 @@ class LogicalVariable(Expression):
     def is_grounded(self) -> bool:
         return False
 
+    def _get_value_raw(self) -> Any:
+        if self.program._compiler.wrapper is not None:
+            if not hasattr(
+                self.program._compiler.wrapper,
+                f"get_logical_var_{self._type.__name__}",
+            ):
+                print(f"get_logical_var_{self._type.__name__} not found ")
+            return getattr(
+                self.program._compiler.wrapper,
+                f"get_logical_var_{self._type.__name__}",
+            )(self.name)
+
+        raise RuntimeError(
+            f"Did not found the associated registry to get_logical_var_{self._type.__name__}"
+        )
+
     def get_value(self) -> Any:
         if self.program._compiler.wrapper is not None:
             if not hasattr(
@@ -328,16 +344,16 @@ class Success(Expression):
         pass
 
     def __repr__(self):
-        return "success()"
+        return "success"
 
     def to_chrpp(self) -> str:
-        return "success()"
+        return "success"
 
     def children(self) -> list[Expression]:
         return []
 
     def node_label(self) -> str:
-        return "success()"
+        return "success"
 
     def node_symbol(self) -> str | None:
         return None
@@ -348,16 +364,16 @@ class Failure(Expression):
         pass
 
     def __repr__(self):
-        return "fail()"
+        return "failure"
 
     def to_chrpp(self) -> str:
-        return "fail()"
+        return "failure"
 
     def children(self) -> list[Expression]:
         return []
 
     def node_label(self) -> str:
-        return "fail()"
+        return "failure"
 
     def node_symbol(self) -> str | None:
         return None
@@ -368,7 +384,7 @@ class Guard(ABC):
     def to_chrpp(self) -> str:
         pass
 
-    def children(self) -> list["Guard"]:
+    def children(self) -> list:
         return []
 
     def node_label(self) -> str:
@@ -524,6 +540,26 @@ class Not(Guard):
 
     def node_symbol(self) -> str | None:
         return "¬"
+
+
+class Ground(Guard):
+    def __init__(self, symbol: Symbol):
+        self.symbol = symbol
+
+    def __repr__(self) -> str:
+        return f"{self.symbol.name}.ground()"
+
+    def to_chrpp(self) -> str:
+        return repr(self)
+
+    def children(self) -> list[Symbol]:
+        return [self.symbol]
+
+    def node_label(self) -> str:
+        return "ground"
+
+    def node_symbol(self) -> str | None:
+        return "ground"
 
 
 FAILURE = Failure()

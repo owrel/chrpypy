@@ -119,6 +119,7 @@ class Program:
 
         self._statistics = Statistics()
         self._rules: list[Rule] = []
+        self._rule_counter = 0
         self._reset_stores: list[ConstraintStore] = []
         self._first_post_done = False
 
@@ -188,11 +189,17 @@ class Program:
     ) -> None:
         for arg in args:
             if isinstance(arg, Rule):
+                if arg.name is None:
+                    arg.name = f"rule{self._rule_counter}"
+                    self._rule_counter += 1
                 self._rules.append(arg)
             elif isinstance(arg, (list, tuple)):
                 for rule in arg:
                     if not isinstance(rule, Rule):
                         raise TypeError(f"Invalid argument type: {type(rule)}")
+                    if rule.name is None:
+                        rule.name = f"rule{self._rule_counter}"
+                        self._rule_counter += 1
                 self._rules.extend(arg)
             else:
                 raise TypeError(f"Invalid argument type: {type(arg)}")
@@ -370,10 +377,10 @@ class Program:
         self._compiler.compile()
 
     def to_chr(self) -> str:
-        return self._compiler.chr_gen.chr_block_generator.generate()
+        return "\n".join([rule.to_str() for rule in self._rules])
 
     def to_chrpp(self) -> str:
-        return "\n".join([rule.to_str() for rule in self._rules])
+        return self._compiler.chr_gen.chr_block_generator.generate()
 
     def reset(self) -> list[Constraint]:
         ret = []

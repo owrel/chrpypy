@@ -1,4 +1,5 @@
 import logging
+import re
 from collections.abc import Generator
 from enum import Enum
 from typing import TYPE_CHECKING, Any
@@ -21,6 +22,9 @@ logger = logging.getLogger(__name__)
 class ConstraintOrigin(Enum):
     CHRPP = "CHRPP"
     PYTHON = "PYTHON"
+
+
+LOGICAL_VAR_RE = re.compile(r"^\?0x[0-9a-fA-F]+$")
 
 
 class Constraint:
@@ -115,8 +119,9 @@ class ConstraintStore:
         self.types: list[Any]
         self.name = name
         self.program = program
-        self._cache = []
         self.history: list[Constraint] = []
+
+        self._cache = []
         self._with_reset = with_reset
 
         if self.name == self.program.name:
@@ -149,7 +154,7 @@ class ConstraintStore:
             if one_none:
                 if lazy:
                     self.initialized = False
-                    self.handle_lazy_init(list(types))
+                    self._handle_lazy_init(list(types))
                 else:
                     raise ValueError(
                         f"Found uninitialized value {types} but it is not lazy init"
@@ -160,7 +165,7 @@ class ConstraintStore:
                 if self.program._auto_add_reset_rules and self._with_reset:
                     self.program._set_reset_systems(self)
 
-    def handle_lazy_init(self, args: list[Any]) -> None:
+    def _handle_lazy_init(self, args: list[Any]) -> None:
         if self.initialized:
             logger.warning(
                 "Calling handle lazy init with already initialized constraint store types"
@@ -223,7 +228,7 @@ class ConstraintStore:
 
     def __call__(self, *args: Any, pragma: str | None = None) -> Constraint:
         if not self.initialized:
-            self.handle_lazy_init(list(args))
+            self._handle_lazy_init(list(args))
 
         if self.initialized and len(self.types) > 0:
             if len(args) != len(self.types):
@@ -252,7 +257,7 @@ class ConstraintStore:
 
     def post(self, *args: Any) -> list[Constraint]:
         if not self.initialized:
-            self.handle_lazy_init(list(args))
+            self._handle_lazy_init(list(args))
         c = self(*args)
         self.program.post(c)
         self._cache = []
@@ -280,12 +285,31 @@ class ConstraintStore:
         args = input[input.find("(") + 1 : -1].split(",")
         if len(self.types) == 0:
             return Constraint(name)
+
+        casted_args = []
+        for idx, arg in enumerate(args):
+            was_logical_var = False
+            print(arg)
+            if LOGICAL_VAR_RE.match(arg.strip()):
+                for logical_var_name in self.program._logical_variable_map:
+                    if (
+                        self.program._logical_variable_map[
+                            logical_var_name
+                        ]._get_value_raw()
+                        == arg
+                    ):
+                        casted_args.append(
+                            self.program._logical_variable_map[logical_var_name]
+                        )
+                        was_logical_var = True
+                        break
+            if not was_logical_var:
+                print(arg)
+                casted_args.append(TypeSystem.cast(arg, self.types[idx]))
+
         return Constraint(
             name,
-            *[
-                TypeSystem.cast(arg, self.types[idx])
-                for idx, arg in enumerate(args)
-            ],
+            *casted_args,
         )
 
     def reset_cache(self) -> None:
@@ -296,7 +320,7 @@ class ConstraintStore:
 
     def __str__(self) -> str:
         if self.program._compiler.wrapper is not None:
-            cs_content = ", ".join(str(c) for c in self.get())
+            cs_content = "[" + ", ".join(str(c) for c in self.get()) + "]"
         else:
             cs_content = "~[]"
 

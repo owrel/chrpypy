@@ -14,12 +14,13 @@ from .expressions import (
 
 AcceptedHeadType: TypeAlias = list[Constraint] | Constraint | None
 AcceptedBodyType: TypeAlias = (
-    list[Constraint | Success | Failure | FunctionCall | Unification]
+    list[Constraint | Success | Failure | FunctionCall | Unification | bool]
     | FunctionCall
     | Constraint
     | Success
     | Failure
     | Unification
+    | bool
     | None
 )
 HeadType: TypeAlias = list[Constraint]
@@ -134,7 +135,7 @@ class Rule:
         body: BodyType | None = None,
     ) -> None:
         self._id = next(Rule._rule_counter)
-        self.name = name or f"Rule{self._id}"
+        self.name = name
         self.positive_head = positive_head or []
         self.negative_head = negative_head or []
         self.guard = guard
@@ -156,8 +157,9 @@ class Rule:
             raise ValueError(
                 "Rule must have either a positive head or a negative head"
             )
-
-        name_prefix = self.name or f"Rule{self._id}"
+        name_prefix = ""
+        if self.name:
+            name_prefix = f"{self.name} @ "
 
         guard_str = f" {self.guard} |" if self.guard else ""
         body_str = self._format_body()
@@ -165,13 +167,13 @@ class Rule:
         positive_str = ", ".join(str(c) for c in self.positive_head)
 
         if not self.negative_head:
-            return f"{name_prefix} @ {positive_str} ==> {guard_str} {body_str}"
+            return f"{name_prefix}{positive_str} ==> {guard_str} {body_str}"
 
         if not self.positive_head:
-            return f"{name_prefix} @ {', '.join(str(c) for c in self.negative_head)} <=> {guard_str} {body_str}"
+            return f"{name_prefix}{', '.join(str(c) for c in self.negative_head)} <=> {guard_str} {body_str}"
 
         negative_str = ", ".join(str(c) for c in self.negative_head)
-        return f"{name_prefix} @ {positive_str} \\ {negative_str} <=> {guard_str} {body_str}"
+        return f"{name_prefix}{positive_str} \\ {negative_str} <=> {guard_str} {body_str}"
 
     def get_all_constraints(self) -> list[Constraint]:
         constraints = []
@@ -185,8 +187,6 @@ class Rule:
 
         if self.name:
             rule_str += f"{self.name} @ "
-        else:
-            rule_str += f"rule{self._id} @ "
 
         if self.negative_head and self.positive_head:
             positive = format_head(self.positive_head)

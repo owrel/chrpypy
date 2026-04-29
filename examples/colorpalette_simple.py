@@ -1,6 +1,6 @@
 from chrpypy import Program
 
-program = Program("ColorPalette", "cp", compile_on="compile")
+program = Program("ColorPalette", "cps", compile_on="compile")
 
 red = program.constraint("red", [])
 blue = program.constraint("blue", [])
