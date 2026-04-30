@@ -136,7 +136,14 @@ class LogicalVariable(Expression):
     def is_grounded(self) -> bool:
         return False
 
-    def unify(self, logicalvar_b: "LogicalVariable") -> None:
+    def unify(self, value: Any) -> None:
+
+        if isinstance(value, LogicalVariable):
+            self._unify_with_logical_var(value)
+        else:
+            self._unify_with_value(value)
+
+    def _unify_with_logical_var(self, logicalvar_b: "LogicalVariable") -> None:
         if self._type != logicalvar_b._type:
             raise TypeError(
                 f"cannot unify logical var of different type :{self._type} != {logicalvar_b._type}"
@@ -153,47 +160,45 @@ class LogicalVariable(Expression):
             f"unify_logical_var_{self._type.__name__}",
         )(self.name, logicalvar_b.name)
 
+    def _unify_with_value(self, value: Any) -> None:
+        value_type = type(value)
+        if value_type != self._type:
+            raise TypeError(
+                f"cannot unify logical variable with value of type {value_type.__name__}, rquire {self._type}"
+            )
+
+        method_name = f"unify_logical_var_{value_type.__name__}_with_value"
+        if not hasattr(self.program._compiler.wrapper, method_name):
+            raise RuntimeError(f"{method_name} not found in wrapper")
+        getattr(self.program._compiler.wrapper, method_name)(self.name, value)
+
     def _get_value_raw(self) -> Any:
         if self.program._compiler.wrapper is not None:
-            if not hasattr(
-                self.program._compiler.wrapper,
-                f"get_logical_var_{self._type.__name__}",
-            ):
-                raise RuntimeError(
-                    f"get_logical_var_{self._type.__name__} not found "
-                )
-            return getattr(
-                self.program._compiler.wrapper,
-                f"get_logical_var_{self._type.__name__}",
-            )(self.name)
+            method_name = f"get_logical_var_{self._type.__name__}"
+            if not hasattr(self.program._compiler.wrapper, method_name):
+                raise RuntimeError(f"{method_name} not found ")
+            return getattr(self.program._compiler.wrapper, method_name)(
+                self.name
+            )
 
-        raise RuntimeError(
-            f"Did not found the associated registry to get_logical_var_{self._type.__name__}"
-        )
+        raise RuntimeError("Did not found the associated registry to get value")
 
     def get_value(self) -> Any:
         if self.program._compiler.wrapper is not None:
-            if not hasattr(
-                self.program._compiler.wrapper,
-                f"get_logical_var_{self._type.__name__}",
-            ):
-                raise RuntimeError(
-                    f"get_logical_var_{self._type.__name__} not found "
-                )
+            method_name = f"get_logical_var_{self._type.__name__}"
+            if not hasattr(self.program._compiler.wrapper, method_name):
+                raise RuntimeError(f"{method_name} not found ")
 
-            val = getattr(
-                self.program._compiler.wrapper,
-                f"get_logical_var_{self._type.__name__}",
-            )(self.name)
+            val = getattr(self.program._compiler.wrapper, method_name)(
+                self.name
+            )
 
             if LOGICAL_VAR_RE.match(val.strip()):
                 return self.name
 
             return self._type(val)
 
-        raise RuntimeError(
-            f"Did not found the associated registry to get_logical_var_{self._type.__name__}"
-        )
+        raise RuntimeError("Did not found the associated registry to get value")
 
 
 class Symbol(Expression):

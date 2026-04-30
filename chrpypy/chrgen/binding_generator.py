@@ -172,6 +172,13 @@ class BindingGenerator:
             setters += f"""\n        auto lv1 = get_logical_var_{python_type.__name__}(name1);\n        auto lv2 = get_logical_var_{python_type.__name__}(name2);\n        lv1 %= lv2;\n"""
             setters += "    }\n\n"
 
+        for python_type in TypeSystem.python_types():
+            cpp_type = TypeSystem.python_to_cpp(python_type)
+            setters += f"    void unify_logical_var_{python_type.__name__}_with_value(const std::string& name, {cpp_type} value) {{\n"
+            setters += f"        auto lv = get_logical_var_{python_type.__name__}(name);\n"
+            setters += "        lv %= value;\n"
+            setters += "    }\n\n"
+
         return setters
 
     def _generate_constraint_adders(self) -> str:
@@ -297,7 +304,10 @@ class BindingGenerator:
                      py::arg("name"))
                 .def("unify_logical_var_{python_type.__name__}", &{self.program.name}Wrapper::unify_logical_var_{python_type.__name__},
                      "Unify two logical variables of type {cpp_type}",
-                     py::arg("name1"), py::arg("name2"))\n"""
+                     py::arg("name1"), py::arg("name2"))
+                .def("unify_logical_var_{python_type.__name__}_with_value", &{self.program.name}Wrapper::unify_logical_var_{python_type.__name__}_with_value,
+                     "Unify logical variable of type {cpp_type} with a concrete value",
+                     py::arg("name"), py::arg("value"))\n"""
 
         if self.program._retrieve_callbacks():
             module += f"""
