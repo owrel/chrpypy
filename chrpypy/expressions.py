@@ -1,3 +1,4 @@
+import re
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any
 
@@ -5,6 +6,8 @@ from .typesystem import TypeSystem
 
 if TYPE_CHECKING:
     from .program import Program
+
+LOGICAL_VAR_RE = re.compile(r"^\?0x[0-9a-fA-F]+$")
 
 
 def ensure_expr(value: Any) -> "Expression":
@@ -133,13 +136,32 @@ class LogicalVariable(Expression):
     def is_grounded(self) -> bool:
         return False
 
+    def unify(self, logicalvar_b: "LogicalVariable") -> None:
+        if self._type != logicalvar_b._type:
+            raise TypeError(
+                f"cannot unify logical var of different type :{self._type} != {logicalvar_b._type}"
+            )
+        if not hasattr(
+            self.program._compiler.wrapper,
+            f"unify_logical_var_{self._type.__name__}",
+        ):
+            raise RuntimeError(
+                f"unify_logical_var_{self._type.__name__} not found "
+            )
+        getattr(
+            self.program._compiler.wrapper,
+            f"unify_logical_var_{self._type.__name__}",
+        )(self.name, logicalvar_b.name)
+
     def _get_value_raw(self) -> Any:
         if self.program._compiler.wrapper is not None:
             if not hasattr(
                 self.program._compiler.wrapper,
                 f"get_logical_var_{self._type.__name__}",
             ):
-                print(f"get_logical_var_{self._type.__name__} not found ")
+                raise RuntimeError(
+                    f"get_logical_var_{self._type.__name__} not found "
+                )
             return getattr(
                 self.program._compiler.wrapper,
                 f"get_logical_var_{self._type.__name__}",
@@ -155,13 +177,20 @@ class LogicalVariable(Expression):
                 self.program._compiler.wrapper,
                 f"get_logical_var_{self._type.__name__}",
             ):
-                print(f"get_logical_var_{self._type.__name__} not found ")
-            return self._type(
-                getattr(
-                    self.program._compiler.wrapper,
-                    f"get_logical_var_{self._type.__name__}",
-                )(self.name)
-            )
+                raise RuntimeError(
+                    f"get_logical_var_{self._type.__name__} not found "
+                )
+
+            val = getattr(
+                self.program._compiler.wrapper,
+                f"get_logical_var_{self._type.__name__}",
+            )(self.name)
+
+            if LOGICAL_VAR_RE.match(val.strip()):
+                return self.name
+
+            return self._type(val)
+
         raise RuntimeError(
             f"Did not found the associated registry to get_logical_var_{self._type.__name__}"
         )
@@ -436,7 +465,7 @@ class Comparison(Guard, Expression):
         op = self.OP_MAPPING.get(self.op, self.op)
         return f"{left} {op} {right}"
 
-    def children(self) -> list[Expression]:  # type: ignore
+    def children(self) -> list[Expression]:
         return [self.left, self.right]
 
     def node_label(self) -> str:

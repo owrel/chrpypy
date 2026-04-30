@@ -27,5 +27,11 @@ A = program.logicalvar("A", int)
 B = program.logicalvar("B", int)
 program.post(neq(A, B))
 
-print(program._compiler.wrapper.get_logical_var_int("A"))
-print(neq)
+# print(dir(program._compiler.wrapper))
+
+# print(program)
+# print(program._compiler.wrapper.unify_logical_var_int("A", "B"))
+# print(program)
+
+
+print(A.get_value(), B.get_value())

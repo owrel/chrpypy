@@ -289,14 +289,13 @@ class ConstraintStore:
         casted_args = []
         for idx, arg in enumerate(args):
             was_logical_var = False
-            print(arg)
             if LOGICAL_VAR_RE.match(arg.strip()):
                 for logical_var_name in self.program._logical_variable_map:
                     if (
-                        self.program._logical_variable_map[
-                            logical_var_name
-                        ]._get_value_raw()
-                        == arg
+                        self.program._logical_variable_map[logical_var_name]
+                        ._get_value_raw()
+                        .strip()
+                        == arg.strip()
                     ):
                         casted_args.append(
                             self.program._logical_variable_map[logical_var_name]
@@ -304,7 +303,6 @@ class ConstraintStore:
                         was_logical_var = True
                         break
             if not was_logical_var:
-                print(arg)
                 casted_args.append(TypeSystem.cast(arg, self.types[idx]))
 
         return Constraint(
