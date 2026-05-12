@@ -319,6 +319,8 @@ class ConstraintStore:
     def __str__(self) -> str:
         if self.program._compiler.wrapper is not None:
             cs_content = "[" + ", ".join(str(c) for c in self.get()) + "]"
+            if self.program.failed():
+                cs_content += " FAILURE"
         else:
             cs_content = "~[]"
 

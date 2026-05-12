@@ -179,7 +179,10 @@ class Program:
         if self._compiler.wrapper is None:
             return str([])
 
-        return str(self.store())
+        result = str(self.store())
+        if self.failed():
+            result += " FAILURE"
+        return result
 
     def __repr__(self) -> str:
         return self.__str__()
