@@ -227,10 +227,26 @@ class BindingGenerator:
             }
             """
 
+        methods += self._generate_failed_method()
+        methods += self._generate_reset_program_method()
         methods += self._generate_reset_method()
         methods += self._generate_store_methods()
         methods += "};\n"
         return methods
+
+    def _generate_failed_method(self) -> str:
+        return """
+            bool failed() {
+                return chr::failed();
+            }
+        """
+
+    def _generate_reset_program_method(self) -> str:
+        return """
+            void reset_program() {
+                chr::reset();
+            }
+        """
 
     def _generate_reset_method(self) -> str:
         reset_method = "void reset() {\n"
@@ -292,6 +308,10 @@ class BindingGenerator:
                      "Get constraint store as list of strings")
                 .def("reset", &{self.program.name}Wrapper::reset,
                      "Reset the constraint store")
+                .def("failed", &{self.program.name}Wrapper::failed,
+                     "Check if the CHR program has failed")
+                .def("reset_program", &{self.program.name}Wrapper::reset_program,
+                     "Reset the failure status of the CHR program")
         """
 
         for python_type in TypeSystem.python_types():

@@ -312,6 +312,9 @@ class Program:
                 self._compiled = True
             self._first_post_done = True
 
+        if self.failed():
+            raise RuntimeError("Program is in failure state ; cannot post")
+
         if hasattr(
             self._compiler.wrapper,
             f"add_{constraint.name}",
@@ -357,6 +360,16 @@ class Program:
         else:
             raise RuntimeError("Did not find register function in wrapper")
 
+    def failed(self) -> bool:
+        if self._compiler.wrapper is None:
+            raise ValueError("Wrapper is None, cannot check failure status")
+        return self._compiler.wrapper.failed()
+
+    def reset_program(self) -> None:
+        if self._compiler.wrapper is None:
+            raise ValueError("Wrapper is None, cannot reset program")
+        self._compiler.wrapper.reset_program()
+
     def store(self) -> list[Constraint]:
         if self._compiler.wrapper is None:
             raise ValueError("Wrapper is None, cannot get constraints")
@@ -382,7 +395,7 @@ class Program:
     def to_chrpp(self) -> str:
         return self._compiler.chr_gen.chr_block_generator.generate()
 
-    def reset(self) -> list[Constraint]:
+    def reset_store(self) -> list[Constraint]:
         ret = []
         for rcs in self._reset_stores:
             ret.extend(rcs.post())

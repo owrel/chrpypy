@@ -1,6 +1,6 @@
 from chrpypy import FAILURE, SUCCESS, Constant, Ground, Program, Unification
 
-program = Program("inequality", "inequality", compile_on="compile")
+program = Program(name="inequality", folder="inequality", compile_on="compile")
 
 neq = program.constraint("neq", [int, int])
 X = program.symbol("X")
@@ -9,7 +9,6 @@ Y = program.symbol("Y")
 
 program.simplification(negative_head=neq(X, X), body=FAILURE)
 
-program.propagation(positive_head=neq(X, Y), body=Unification(X, Constant(1)))
 
 program.simplification(
     negative_head=neq(X, Y),
@@ -18,10 +17,10 @@ program.simplification(
 )
 
 program.compile()
-
 # neq.post(10, 11)
 # print(neq)
 
+print(Ground(X) & Ground(Y) & (X != Y))
 
 A = program.logicalvar("A", int)
 B = program.logicalvar("B", int)
@@ -35,3 +34,7 @@ program.post(neq(A, B))
 
 
 print(A.get_value(), B.get_value())
+print(neq.post(2, 2))
+print(program)
+# print(program.reset_program())
+# print(neq.post(2, 2))
