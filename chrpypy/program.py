@@ -399,7 +399,6 @@ class Program:
         return self._compiler.chr_gen.chr_block_generator.generate()
 
     def reset_store(self) -> list[Constraint]:
-        ret = []
         for rcs in self._reset_stores:
-            ret.extend(rcs.post())
-        return ret
+            rcs.post()
+        return self.store()

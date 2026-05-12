@@ -30,10 +30,13 @@ program.simplification(
 
 print(program._rules)
 
-# program.compile()
+program.compile()
 
-# red.post()
-# print(blue.post())
-# print(purple)
+red.post()
+print(blue.post())
+print(purple)
 
-# print(program)
+print(program)
+
+print(program.reset_store())
+print(program)
