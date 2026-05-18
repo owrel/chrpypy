@@ -24,7 +24,7 @@ class CHRPPGenerator:
             signatures.add(signature)
         return sorted(signatures)
 
-    def generate(self) -> str:
+    def generate(self, exclude_rule_names: set[str] | None = None) -> str:
         signatures = self._get_constraint_signatures()
 
         chr_block = "/**\n"
@@ -35,7 +35,11 @@ class CHRPPGenerator:
 
         chr_block += f"\t<chr_constraint> {', '.join(signatures)}\n"
 
-        for rule in self.program._rules:
+        rules = self.program._rules
+        if exclude_rule_names:
+            rules = [r for r in rules if r.name not in exclude_rule_names]
+
+        for rule in rules:
             chr_block += "\t\t" + rule.to_chrpp()
 
         chr_block += "\t</CHR>\n"

@@ -20,11 +20,7 @@ program.compile()
 # neq.post(10, 11)
 # print(neq)
 
-print(Ground(X) & Ground(Y) & (X != Y))
-
-A = program.logicalvar("A", int)
-B = program.logicalvar("B", int)
-program.post(neq(A, B))
+# print(Ground(X) & Ground(Y) & (X != Y))
 
 # print(dir(program._compiler.wrapper))
 
@@ -33,8 +29,10 @@ program.post(neq(A, B))
 # print(program)
 
 
-print(A.get_value(), B.get_value())
-print(neq.post(2, 2))
+neq.post(2, 2)
 print(program)
-# print(program.reset_program())
-# print(neq.post(2, 2))
+print(program.reset_program())
+print(neq.post(2, 4))
+A = program.logicalvar("A", int)
+B = program.logicalvar("B", int)
+print(neq.post(A, B))

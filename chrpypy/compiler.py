@@ -3,6 +3,7 @@ import logging
 import operator
 import shutil
 import subprocess
+import sys
 import sysconfig
 import tempfile
 import time
@@ -96,6 +97,8 @@ class Compiler:
             )
 
         logger.debug(f"Importing wrapper from {target}")
+
+        sys.modules.pop(self.program.name, None)
 
         spec = util.spec_from_file_location(self.program.name, target)
         if spec is None:
@@ -267,7 +270,6 @@ class Compiler:
                 capture_output=True,
                 text=True,
             )
-            # Log any warnings or output
             if result.stdout:
                 write_to_log(f"CHRPP compiler output:\n{result.stdout}")
             if result.stderr:

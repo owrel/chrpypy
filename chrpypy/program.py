@@ -121,6 +121,7 @@ class Program:
         self._rules: list[Rule] = []
         self._rule_counter = 0
         self._reset_stores: list[ConstraintStore] = []
+        self._reset_rule_names: set[str] = set()
         self._first_post_done = False
 
     @property
@@ -148,23 +149,28 @@ class Program:
         self._store_map[reset_constraint_store.name] = reset_constraint_store
         self._reset_stores.append(reset_constraint_store)
 
-        self._rules.extend(
-            [
-                SimpagationRule(
-                    name=f"{reset_constraint_store.name}_consume",
-                    positive_head=self._store_map[
-                        cs._get_associated_reset_constraint_name()
-                    ](),
-                    negative_head=cs(*[ANON for _ in range(len(cs.types))]),
-                ),
-                SimplificationRule(
-                    name=f"{reset_constraint_store.name}_stop_consume",
-                    negative_head=self._store_map[
-                        cs._get_associated_reset_constraint_name()
-                    ](),
-                ),
-            ]
+        consume_rule = SimpagationRule(
+            name=f"{reset_constraint_store.name}_consume",
+            positive_head=self._store_map[
+                cs._get_associated_reset_constraint_name()
+            ](),
+            negative_head=cs(*[ANON for _ in range(len(cs.types))]),
         )
+        stop_consume_rule = SimplificationRule(
+            name=f"{reset_constraint_store.name}_stop_consume",
+            negative_head=self._store_map[
+                cs._get_associated_reset_constraint_name()
+            ](),
+        )
+
+        if consume_rule.name is None or stop_consume_rule.name is None:
+            raise RuntimeError(
+                "consume_rule.name or stop_consume_rule can not be set to none"
+            )
+
+        self._reset_rule_names.add(consume_rule.name)
+        self._reset_rule_names.add(stop_consume_rule.name)
+        self._rules.extend([consume_rule, stop_consume_rule])
 
     def _retrieve_callbacks(self) -> list[FunctionCall]:
         ret = []
@@ -392,11 +398,20 @@ class Program:
     def compile(self) -> None:
         self._compiler.compile()
 
-    def to_chr(self) -> str:
-        return "\n".join([rule.to_str() for rule in self._rules])
+    def to_chr(self, *, include_reset_rules: bool = False) -> str:
+        if include_reset_rules:
+            rules = self._rules
+        else:
+            rules = [
+                r for r in self._rules if r.name not in self._reset_rule_names
+            ]
+        return "\n".join([rule.to_str() for rule in rules])
 
-    def to_chrpp(self) -> str:
-        return self._compiler.chr_gen.chr_block_generator.generate()
+    def to_chrpp(self, *, include_reset_rules: bool = False) -> str:
+        exclude_names = None if include_reset_rules else self._reset_rule_names
+        return self._compiler.chr_gen.chr_block_generator.generate(
+            exclude_rule_names=exclude_names
+        )
 
     def reset_store(self) -> list[Constraint]:
         for rcs in self._reset_stores:
