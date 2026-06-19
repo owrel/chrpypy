@@ -1,35 +1,31 @@
+# Goal: Demonstrate calling Python functions directly from CHR rules
+# via the FunctionCall mechanism. Shows how to register a Python
+# callback and trigger it when a constraint is removed.
+
 import logging
 
-from chrpypy import (
-    SUCCESS,
-    CompileTrigger,
-    FunctionCall,
-    Program,
-)
+from chrpypy import SUCCESS, FunctionCall, Program
 
 logger = logging.getLogger(__name__)
 
-
-p = Program(
+program = Program(
     name="PyCallback",
     folder="pycallback",
     use_cache=True,
-    compile_on=CompileTrigger.COMPILE,
+    compile_on="compile",
 )
-cb = p.constraint("cb", (int,))
+cb = program.constraint("cb", (int,))
 
-X = p.symbol("X")
-p.simpagation(
+X = program.symbol("X")
+program.simpagation(
     negative_head=cb(X),
     body=[FunctionCall("value", X), SUCCESS],
 )
 
-p.compile()
-p.register_function(
+program.compile()
+program.register_function(
     "value",
     print,
 )
 
 cb.post(0)
-logger.info(p._statistics)
-logger.info(p._statistics.total_time)

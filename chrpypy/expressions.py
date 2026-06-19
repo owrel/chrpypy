@@ -194,7 +194,18 @@ class LogicalVariable(Expression):
             )
 
             if LOGICAL_VAR_RE.match(val.strip()):
-                return self.name
+                for logical_var_name in self.program._logical_variable_map:
+                    if (
+                        self.program._logical_variable_map[logical_var_name]
+                        ._get_value_raw()
+                        .strip()
+                        == val.strip()
+                    ):
+                        return logical_var_name
+
+                raise RuntimeError(
+                    "Did not found the associated registry to get value"
+                )
 
             return self._type(val)
 
@@ -222,6 +233,26 @@ class Symbol(Expression):
 
     def is_grounded(self) -> bool:
         return False
+
+
+class Inline(Expression):
+    def __init__(self, value: str):
+        self.value = value
+
+    def __repr__(self):
+        return self.value
+
+    def to_chrpp(self) -> str:
+        return self.value  # no quoting, no transformation
+
+    def node_label(self) -> str:
+        return "Inline"
+
+    def node_symbol(self) -> str | None:
+        return self.value
+
+    def is_grounded(self) -> bool:
+        return True
 
 
 class Anonymous(Expression):

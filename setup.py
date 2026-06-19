@@ -77,7 +77,6 @@ class CustomInstall(install):
 
                 build_path.mkdir(parents=True, exist_ok=True)
 
-                # Configure (out-of-source)
                 subprocess.run(
                     [
                         cmake,

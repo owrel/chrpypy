@@ -1,3 +1,8 @@
+# Goal: Demonstrate color mixing using a factorized constraint representation.
+# A single parameterized `color/1` constraint represents all colors,
+# with rules that combine two colors into a third (e.g., red + blue -> purple).
+# Also shows ANON (anonymous variable) usage and duplicate removal.
+
 from chrpypy import ANON, Program
 
 program = Program("ColorPalette", "cpf", compile_on="compile")
@@ -18,14 +23,11 @@ program.simpagation(
     positive_head=color("brown"), negative_head=color(ANON), body=True
 )
 
-X = program.symbol("X")  # Equivalent of importing Sym
-Y = program.symbol("Y")
+X, Y = program.symbols("X", "Y")
 
 program.simpagation(
     positive_head=color(X), negative_head=color(Y), guard=X == Y, body=True
 )
-
-print(program.to_chrpp())
 
 program.compile()
 
@@ -33,5 +35,4 @@ color.post("blue")
 color.post("red")
 color.post("brown")
 
-
-print(program)
+print(program.store())

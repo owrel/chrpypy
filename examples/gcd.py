@@ -1,31 +1,30 @@
-from chrpypy.expressions import Unification
+# Goal: Compute the greatest common divisor (GCD) of two integers using
+# the Euclidean algorithm encoded as CHR rules. Demonstrates logical
+# variables and the Unification mechanism for retrieving results.
 
-from chrpypy import SUCCESS, CompileTrigger, Program
+from chrpypy import SUCCESS, Program, Unification
 
-p = Program(name="GCD", folder="gcd", compile_on=CompileTrigger.COMPILE)
-gcd = p.constraint("gcd", (int,))
-res = p.constraint("res", (int,))
+program = Program(name="GCD", folder="gcd", compile_on="compile")
+gcd = program.constraint("gcd", (int,))
+res = program.constraint("res", (int,))
 
+N, M = program.symbols("N", "M")
 
-N = p.symbol("N")
-M = p.symbol("M")
-
-
-p.simpagation(negative_head=gcd(0), body=SUCCESS)
-p.simpagation(
+program.simpagation(negative_head=gcd(0), body=SUCCESS)
+program.simpagation(
     positive_head=gcd(N),
     negative_head=gcd(M),
     guard=(N <= M),
     body=gcd(M - N),
 )
-p.simpagation(
+program.simpagation(
     positive_head=gcd(N), negative_head=res(M), body=Unification(M, N)
 )
-p.compile()
-Res = p.logicalvar("Res", int)
+
+program.compile()
+Res = program.logicalvar("Res", int)
 gcd.post(182)
 gcd.post(144)
 res.post(Res)
-
 
 print(f"GCD: {Res.get_value()}")

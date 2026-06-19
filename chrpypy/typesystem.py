@@ -29,7 +29,9 @@ def str_caster(input: str) -> str:
         ) from None
 
 
-def bool_caster(input: str) -> bool:
+def bool_caster(input: str | bool) -> bool:  # noqa
+    if isinstance(input, bool):
+        return input
     input = input.strip()
     if input.lower() == "false":
         return False

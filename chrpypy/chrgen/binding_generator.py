@@ -79,6 +79,10 @@ class BindingGenerator:
     def _generate_py_to_arg_method(self) -> str:
         return """
             std::shared_ptr<Arg> py_to_arg(py::handle obj) {
+                // bool check must come before int_, since Python bool is a subclass of int
+                if (py::isinstance<py::bool_>(obj)) {
+                    return std::make_shared<GroundArg<bool>>(obj.cast<bool>());
+                }
                 if (py::isinstance<py::int_>(obj)) {
                     return std::make_shared<GroundArg<int>>(obj.cast<int>());
                 }
@@ -88,9 +92,6 @@ class BindingGenerator:
                 if (py::isinstance<py::str>(obj)) {
                     std::string s = obj.cast<std::string>();
                     return std::make_shared<GroundArg<std::string>>(s);
-                }
-                if (py::isinstance<py::bool_>(obj)) {
-                    return std::make_shared<GroundArg<bool>>(obj.cast<bool>());
                 }
                 if (py::hasattr(obj, "name")) {
                     std::string var_name = obj.attr("name").cast<std::string>();

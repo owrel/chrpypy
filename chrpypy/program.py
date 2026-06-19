@@ -6,7 +6,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, Self
 
 from .compiler import Compiler
 from .constraints import Constraint, ConstraintOrigin, ConstraintStore
@@ -90,16 +90,16 @@ class Program:
         folder: Path | str | None = None,
         *,
         use_cache: bool = True,
-        compile_on: CompileTrigger | str = CompileTrigger.FIRST_POST,
+        compile_on: Literal["first_post", "rule", "compile"] = "first_post",
         max_history: int = 50,
-        auto_add_reset_rules: bool = True,
+        auto_reset_rules: bool = True,
     ) -> None:
         self._id = Program._id
         Program._id += 1
 
         self.name = name or f"program{Program._id}"
 
-        self._auto_add_reset_rules = auto_add_reset_rules
+        self._auto_reset_rules = auto_reset_rules
 
         if folder is None:
             tempdir = tempfile.gettempdir()
@@ -182,13 +182,7 @@ class Program:
         return ret
 
     def __str__(self) -> str:
-        if self._compiler.wrapper is None:
-            return str([])
-
-        result = str(self.store())
-        if self.failed():
-            result += " FAILURE"
-        return result
+        return self.chr()
 
     def __repr__(self) -> str:
         return self.__str__()
@@ -294,6 +288,9 @@ class Program:
     def symbol(self, name: str) -> Symbol:
         return Symbol(name)
 
+    def symbols(self, *names: str) -> tuple[Symbol, ...]:
+        return tuple(Symbol(name) for name in names)
+
     def constraint(
         self,
         name: str,
@@ -345,7 +342,6 @@ class Program:
                             self._store_map[constraint.name].types[idx],
                         )
                     )
-
             getattr(self._compiler.wrapper, f"add_{constraint.name}")(*args)
 
             for cs in self._store_map.values():
@@ -395,10 +391,11 @@ class Program:
             ret.append(constraint)
         return ret
 
-    def compile(self) -> None:
+    def compile(self) -> Self:
         self._compiler.compile()
+        return self
 
-    def to_chr(self, *, include_reset_rules: bool = False) -> str:
+    def chr(self, *, include_reset_rules: bool = False) -> str:
         if include_reset_rules:
             rules = self._rules
         else:

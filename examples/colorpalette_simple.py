@@ -1,3 +1,7 @@
+# Goal: Demonstrate color mixing using simple nullary constraints.
+# Each color is a separate constraint with no arguments.
+# Rules specify how pairs of colors combine into a new color.
+
 from chrpypy import Program
 
 program = Program("ColorPalette", "cps", compile_on="compile")
@@ -8,7 +12,6 @@ yellow = program.constraint("yellow", [])
 purple = program.constraint("purple", [])
 orange = program.constraint("orange", [])
 green = program.constraint("green", [])
-
 
 program.simplification(
     name="purple",
@@ -28,15 +31,9 @@ program.simplification(
     body=[green()],
 )
 
-print(program._rules)
-
 program.compile()
 
 red.post()
-print(blue.post())
-print(purple)
+blue.post()
 
-print(program)
-
-print(program.reset_store())
-print(program)
+print(program.store())

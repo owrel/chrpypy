@@ -1,14 +1,15 @@
-from chrpypy import FAILURE, SUCCESS, Constant, Ground, Program, Unification
+# Goal: Model inequality (neq/2) between integers using CHR rules.
+# Shows how to express failure (X != X) and prove equality when
+# both arguments are ground and different.
+
+from chrpypy import FAILURE, SUCCESS, Ground, Program
 
 program = Program(name="inequality", folder="inequality", compile_on="compile")
 
 neq = program.constraint("neq", [int, int])
-X = program.symbol("X")
-Y = program.symbol("Y")
-
+X, Y = program.symbols("X", "Y")
 
 program.simplification(negative_head=neq(X, X), body=FAILURE)
-
 
 program.simplification(
     negative_head=neq(X, Y),
@@ -17,17 +18,6 @@ program.simplification(
 )
 
 program.compile()
-# neq.post(10, 11)
-# print(neq)
-
-# print(Ground(X) & Ground(Y) & (X != Y))
-
-# print(dir(program._compiler.wrapper))
-
-# print(program)
-# print(program._compiler.wrapper.unify_logical_var_int("A", "B"))
-# print(program)
-
 
 neq.post(2, 2)
 print(program)

@@ -1,4 +1,4 @@
-from time import sleep
+# ruff : noqa :  FBT003
 
 from chrpypy.constraints import Constraint
 
@@ -7,7 +7,7 @@ from chrpypy import ANON, Program, Symbol
 p = Program(
     name="ConwayLife",
     folder="conway",
-    compile_on=Program.compile_trigger.COMPILE,
+    compile_on="compile",
 )
 
 
@@ -165,10 +165,11 @@ cell.post(1, 0)
 cell.post(1, 1)
 cell.post(0, 1)
 cell.post(0, 2)
+count.post(0, 2, 1, True)
 
 
-for x in range(200):
-    print(f"Generation {x}")
-    show_grid(cell.get())
-    tick.post()
-    sleep(0.08)
+# for x in range(200):
+#     print(f"Generation {x}")
+#     show_grid(cell.get())
+#     tick.post()
+#     sleep(0.08)

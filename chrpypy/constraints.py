@@ -27,6 +27,29 @@ class ConstraintOrigin(Enum):
 LOGICAL_VAR_RE = re.compile(r"^\?0x[0-9a-fA-F]+$")
 
 
+def _rec_extract_values(expr: Expression) -> list[Any]:
+    if isinstance(expr, LogicalVariable):
+        return [expr]
+
+    if isinstance(expr, Constant):
+        return [expr.value]
+
+    if isinstance(expr, Symbol):
+        raise TypeError(
+            "Found symbol in constraint that supposed to be grounded, check for bugs in is_grounded()"
+        )
+
+    if len(expr.children()) == 0:
+        raise ValueError(
+            f"Expression {expr} is malconstructed, not chilld but is not considered as terminaison expression (Constant or Variables)"
+        )
+
+    ret: list[Any] = []
+    for child in expr.children():
+        ret.extend(_rec_extract_values(child))
+    return ret
+
+
 class Constraint:
     def __init__(self, *args: Any):
         if self.__class__.__name__ == "Constraint":
@@ -59,6 +82,9 @@ class Constraint:
     def arity(self) -> int:
         return len(self.args)
 
+    def __getitem__(self, index: int) -> Any:
+        return _rec_extract_values(self.args[index])[0]
+
     def set_args(self, *args: Any) -> None:
         self.args = [ensure_expr(arg) for arg in args]
 
@@ -73,31 +99,9 @@ class Constraint:
                 "Constraint that is not grounded can not have its values extracted"
             )
 
-        def rec_extract_values(expr: Expression) -> list[Any]:
-            if isinstance(expr, LogicalVariable):
-                return [expr]
-
-            if isinstance(expr, Constant):
-                return [expr.value]
-
-            if isinstance(expr, Symbol):
-                raise TypeError(
-                    "Found symbol in constraint that supposed to be grounded, check for bugs in is_grounded()"
-                )
-
-            if len(expr.children()) == 0:
-                raise ValueError(
-                    f"Expression {expr} is malconstructed, not chilld but is not considered as terminaison expression (Constant or Variables)"
-                )
-
-            ret: list[Any] = []
-            for child in expr.children():
-                ret.extend(rec_extract_values(child))
-            return ret
-
         ret = []
         for arg in self.args:
-            ret.extend(rec_extract_values(arg))
+            ret.extend(_rec_extract_values(arg))
 
         return ret
 
@@ -134,13 +138,13 @@ class ConstraintStore:
             if lazy:
                 if isinstance(types, list):
                     self.initialized = True
-                    if self.program._auto_add_reset_rules and self._with_reset:
+                    if self.program._auto_reset_rules and self._with_reset:
                         self.program._set_reset_systems(self)
                 else:
                     self.initialized = False
             else:
                 self.initialized = True
-                if self.program._auto_add_reset_rules and self._with_reset:
+                if self.program._auto_reset_rules and self._with_reset:
                     self.program._set_reset_systems(self)
         else:
             for idx, arg in enumerate(types):
@@ -162,7 +166,7 @@ class ConstraintStore:
             else:
                 self.initialized = True
                 self.types = list(types)
-                if self.program._auto_add_reset_rules and self._with_reset:
+                if self.program._auto_reset_rules and self._with_reset:
                     self.program._set_reset_systems(self)
 
     def _handle_lazy_init(self, args: list[Any]) -> None:
@@ -192,7 +196,8 @@ class ConstraintStore:
                     elif isinstance(arg, (*TypeSystem.python_types(),)):
                         self.types[idx] = type(arg)
                     else:
-                        print(type(arg))
+                        # need edge case testing there
+                        pass
 
                 else:
                     if not isinstance(
@@ -223,7 +228,7 @@ class ConstraintStore:
         one_none = any(True if t is None else False for t in self.types)  # noqa
         if not one_none:
             self.initialized = True
-            if self.program._auto_add_reset_rules and self._with_reset:
+            if self.program._auto_reset_rules and self._with_reset:
                 self.program._set_reset_systems(self)
 
     def __call__(self, *args: Any, pragma: str | None = None) -> Constraint:
