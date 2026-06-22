@@ -183,7 +183,7 @@ class LogicalVariable(Expression):
 
         raise RuntimeError("Did not found the associated registry to get value")
 
-    def get_value(self) -> Any:
+    def value(self) -> Any:
         if self.program._compiler.wrapper is not None:
             method_name = f"get_logical_var_{self._type.__name__}"
             if not hasattr(self.program._compiler.wrapper, method_name):

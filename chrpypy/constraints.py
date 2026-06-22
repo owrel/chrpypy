@@ -136,7 +136,7 @@ class ConstraintStore:
         if not types:
             self.types = []
             if lazy:
-                if isinstance(types, list):
+                if isinstance(types, (list, tuple)):
                     self.initialized = True
                     if self.program._auto_reset_rules and self._with_reset:
                         self.program._set_reset_systems(self)

@@ -6,7 +6,7 @@ from chrpypy import Program
 
 program = Program("bank", "bk", compile_on="compile")
 
-I, J = program.symbols("I", "J")
+I, J = program.symbols("I", "J")  # noqa
 
 piggy_bank = program.constraint("piggy_bank", [int])
 

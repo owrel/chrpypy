@@ -24,5 +24,7 @@ program.simpagation(
     body=SUCCESS,
 )
 
+print(program)
+
 candidate.post(nb)
 print(f"Primes up to {nb}:", prime.get())

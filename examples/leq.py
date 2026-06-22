@@ -6,8 +6,6 @@ from chrpypy import SUCCESS, Program, Unification
 
 program = Program(
     name="LEQ",
-    folder="leq",
-    compile_on="first_post",
 )
 leq = program.constraint("leq", lazy=True)
 
@@ -31,9 +29,9 @@ program.propagation(
     name="transitivity", positive_head=[leq(X, Y), leq(Y, Z)], body=leq(X, Z)
 )
 
-
-leq.post("1", "2")
-leq.post("1", "3")
-leq.post("2", "5")
+# Food chain leq(predator, prey)
+leq.post("lion", "zebra")
+leq.post("zebra", "grass")
+leq.post("bear", "grass")
 
 print(program.store())

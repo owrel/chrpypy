@@ -23,7 +23,6 @@ from .expressions import (
 )
 from .program import CompileTrigger, ConstraintStore, Program
 from .rules import PropagationRule, Rule, SimpagationRule, SimplificationRule
-from .viz import Renderer, viz
 
 __all__ = [
     "ANON",
@@ -47,7 +46,6 @@ __all__ = [
     "Or",
     "Program",
     "PropagationRule",
-    "Renderer",
     "Rule",
     "SimpagationRule",
     "SimplificationRule",
@@ -55,5 +53,4 @@ __all__ = [
     "UnaryOp",
     "Unification",
     "ensure_expr",
-    "viz",
 ]

@@ -17,7 +17,7 @@ authors = [
 maintainers = [
   { name = "Aurélien SIMON", email = "aurelien.simon@univ-angers.fr" },
 ]
-dependencies = ["pybind11", "ipython", "graphviz"]
+dependencies = ["pybind11", "ipython"]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Intended Audience :: Science/Research",

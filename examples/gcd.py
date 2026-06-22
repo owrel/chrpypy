@@ -27,4 +27,4 @@ gcd.post(182)
 gcd.post(144)
 res.post(Res)
 
-print(f"GCD: {Res.get_value()}")
+print(f"GCD: {Res.value()}")

@@ -164,7 +164,7 @@ for x in range(10):
         cell.post(x, y, state)
 
 
-for i in range(0, 7):
+for _ in range(7):
     show_grid(cell.get())
     tick_count.post()
     sleep(0.8)

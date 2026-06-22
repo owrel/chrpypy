@@ -106,7 +106,9 @@ class CustomInstall(install):
                 shutil.copytree(cache_path, install_path / "chrpp")
                 print("CHRPP cached for future use")
 
-            src_dir = Path("misc").resolve()
+            src_dir = (
+                Path(__file__).resolve().parent / "chrpypy" / "misc"
+            ).resolve()
             dest_dir = install_path / "chrpp" / "misc"
             dest_dir.mkdir(parents=True, exist_ok=True)
 

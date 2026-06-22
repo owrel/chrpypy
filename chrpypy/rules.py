@@ -23,7 +23,7 @@ AcceptedBodyType: TypeAlias = (
     | bool
     | None
 )
-HeadType: TypeAlias = list[Constraint]
+HeadType: TypeAlias = list[Constraint] | None
 GuardType: TypeAlias = Guard | list[Guard] | set[Guard] | None
 BodyType: TypeAlias = list[
     Constraint | Success | Failure | FunctionCall | Unification

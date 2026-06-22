@@ -2,7 +2,7 @@ import logging
 import os
 import tempfile
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -284,6 +284,11 @@ class Program:
             )
 
         return self._logical_variable_map[name]
+
+    def logicalvars(
+        self, names: Sequence[str], _type: Any
+    ) -> tuple[LogicalVariable, ...]:
+        return tuple(self.logicalvar(name, _type) for name in names)
 
     def symbol(self, name: str) -> Symbol:
         return Symbol(name)
