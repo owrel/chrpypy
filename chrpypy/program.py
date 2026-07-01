@@ -322,6 +322,9 @@ class Program:
             self._compiler.compile()
             self._compiled = True
 
+        if not self._compiled:
+            raise ValueError("Cannot post without a compiled program")
+
         if self.failed():
             raise RuntimeError("Program is in failure state ; cannot post")
 
