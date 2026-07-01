@@ -109,7 +109,6 @@ class Program:
         else:
             self._folder = Path(folder).resolve()
 
-        self._compiled = False
         self._store_map: dict[str, ConstraintStore] = {}
         self._logical_variable_map: dict[str, LogicalVariable] = {}
         self._compiler = Compiler(self, max_history, use_cache=use_cache)
@@ -192,7 +191,7 @@ class Program:
     def add_rule(
         self, *args: Rule | list[Rule] | tuple[Rule], hold_compile: bool = False
     ) -> None:
-        self._compiled = False
+        self._compiler.compiled = False
         for arg in args:
             if isinstance(arg, Rule):
                 if arg.name is None:
@@ -212,7 +211,6 @@ class Program:
 
         if not hold_compile and self._compile_on == CompileTrigger.RULE:
             self._compiler.compile()
-            self._compiled = True
 
     def simplification(
         self,
@@ -318,11 +316,13 @@ class Program:
         return c
 
     def post(self, constraint: Constraint) -> None:
-        if not self._compiled and self._compile_on == CompileTrigger.FIRST_POST:
+        if (
+            not self._compiler.compiled
+            and self._compile_on == CompileTrigger.FIRST_POST
+        ):
             self._compiler.compile()
-            self._compiled = True
 
-        if not self._compiled:
+        if not self._compiler.compiled:
             raise ValueError("Cannot post without a compiled program")
 
         if self.failed():
@@ -423,7 +423,7 @@ class Program:
         self._compiler.wrapper.reset_program()
 
     def store(self) -> list[Constraint]:
-        if not self._compiled:
+        if not self._compiler.compiled:
             raise ValueError("Program is not compiled, cannot access store")
 
         if self._compiler.wrapper is None:

@@ -36,8 +36,10 @@ class BindingGenerator:
         includes += "namespace py = pybind11;\n\n"
         return includes
 
-    def _generate_wrapper_class_private_members(self) -> str:
-        wrapper_class = f"class {self.program.name}Wrapper {{\n"
+    def _generate_wrapper_class_private_members(
+        self, wrapper_cpp_name: str
+    ) -> str:
+        wrapper_class = f"class {wrapper_cpp_name} {{\n"
         wrapper_class += "private:\n"
         wrapper_class += f"    chr::Shared_obj<{self.program.name}> space;\n"
 
@@ -51,11 +53,11 @@ class BindingGenerator:
         wrapper_class += "\n"
         return wrapper_class
 
-    def _generate_wrapper_class_methods(self) -> str:
+    def _generate_wrapper_class_methods(self, wrapper_cpp_name: str) -> str:
         methods = self._generate_logical_var_getters()
         methods += self._generate_py_to_arg_method()
         methods += self._generate_resolve_arg_method()
-        methods += self._generate_constructor()
+        methods += self._generate_constructor(wrapper_cpp_name)
         methods += self._generate_logical_var_setters()
         methods += self._generate_constraint_adders()
         methods += self._generate_utility_methods()
@@ -141,9 +143,9 @@ class BindingGenerator:
             """
         return resolve_arg_method
 
-    def _generate_constructor(self) -> str:
+    def _generate_constructor(self, wrapper_cpp_name: str) -> str:
         constructor = "public:\n"
-        constructor += f"    {self.program.name}Wrapper() {{\n"
+        constructor += f"    {wrapper_cpp_name}() {{\n"
         if self.program._retrieve_callbacks():
             constructor += (
                 f"        space = {self.program.name}::create(registry);\n"
@@ -289,64 +291,73 @@ class BindingGenerator:
             }
         """
 
-    def generate(self) -> str:
+    def generate(self, module_name: str | None = None) -> str:
+        if module_name is None:
+            module_name = self.program.name
+
+        wrapper_cpp_name = f"{module_name}Wrapper"
+
         code = self.generate_bindings_includes()
 
-        code += self._generate_wrapper_class_private_members()
-        code += self._generate_wrapper_class_methods()
-        code += self._generate_pybind_module()
+        code += self._generate_wrapper_class_private_members(wrapper_cpp_name)
+        code += self._generate_wrapper_class_methods(wrapper_cpp_name)
+        code += self._generate_pybind_module(module_name, wrapper_cpp_name)
 
         return code
 
-    def _generate_pybind_module(self) -> str:
+    def _generate_pybind_module(
+        self, module_name: str, wrapper_cpp_name: str
+    ) -> str:
         module = f"""
-        PYBIND11_MODULE({self.program.name}, m) {{
+        PYBIND11_MODULE({module_name}, m) {{
             m.doc() = "Python bindings for {self.program.name} CHR program";
 
-            py::class_<{self.program.name}Wrapper>(m, "{self.program.name}")
+            py::class_<{wrapper_cpp_name}>(m, "{module_name}")
                 .def(py::init<>())
-                .def("get_constraint_store", &{self.program.name}Wrapper::get_constraint_store,
+                .def("get_constraint_store", &{wrapper_cpp_name}::get_constraint_store,
                      "Get constraint store as list of strings")
-                .def("reset", &{self.program.name}Wrapper::reset,
+                .def("reset", &{wrapper_cpp_name}::reset,
                      "Reset the constraint store")
-                .def("failed", &{self.program.name}Wrapper::failed,
+                .def("failed", &{wrapper_cpp_name}::failed,
                      "Check if the CHR program has failed")
-                .def("reset_program", &{self.program.name}Wrapper::reset_program,
+                .def("reset_program", &{wrapper_cpp_name}::reset_program,
                      "Reset the failure status of the CHR program")
         """
 
         for python_type in TypeSystem.python_types():
             cpp_type = TypeSystem.python_to_cpp(python_type)
-            module += f"""        .def("get_logical_var_{python_type.__name__}", &{self.program.name}Wrapper::get_logical_var_{python_type.__name__},
+            module += f"""        .def("get_logical_var_{python_type.__name__}", &{wrapper_cpp_name}::get_logical_var_{python_type.__name__},
                      "Get logical variable of type {cpp_type} by name",
                      py::arg("name"))
-                .def("set_logical_var_{python_type.__name__}", &{self.program.name}Wrapper::set_logical_var_{python_type.__name__},
+                .def("set_logical_var_{python_type.__name__}", &{wrapper_cpp_name}::set_logical_var_{python_type.__name__},
                      "Create and store a logical variable of type {cpp_type} with given name ",
                      py::arg("name"))
-                .def("unify_logical_var_{python_type.__name__}", &{self.program.name}Wrapper::unify_logical_var_{python_type.__name__},
+                .def("unify_logical_var_{python_type.__name__}", &{wrapper_cpp_name}::unify_logical_var_{python_type.__name__},
                      "Unify two logical variables of type {cpp_type}",
                      py::arg("name1"), py::arg("name2"))
-                .def("unify_logical_var_{python_type.__name__}_with_value", &{self.program.name}Wrapper::unify_logical_var_{python_type.__name__}_with_value,
+                .def("unify_logical_var_{python_type.__name__}_with_value", &{wrapper_cpp_name}::unify_logical_var_{python_type.__name__}_with_value,
                      "Unify logical variable of type {cpp_type} with a concrete value",
                      py::arg("name"), py::arg("value"))\n"""
 
         if self.program._retrieve_callbacks():
             module += f"""
-                .def("register_function", &{self.program.name}Wrapper::register_function,
+                .def("register_function", &{wrapper_cpp_name}::register_function,
                      "Register a Python function with a name",
                      py::arg("name"), py::arg("func"))
             """
 
         for cs in self.program._store_map.values():
-            module += self._generate_constraint_binding(cs)
+            module += self._generate_constraint_binding(cs, wrapper_cpp_name)
 
         module += ";\n}\n"
         return module
 
-    def _generate_constraint_binding(self, cs: "ConstraintStore") -> str:
+    def _generate_constraint_binding(
+        self, cs: "ConstraintStore", wrapper_cpp_name: str
+    ) -> str:
         if len(cs.types) > 0:
             args = ", ".join(f'py::arg("arg{i}")' for i in range(len(cs.types)))
-            return f"""        .def("add_{cs.name}", &{self.program.name}Wrapper::add_{cs.name}_py,
+            return f"""        .def("add_{cs.name}", &{wrapper_cpp_name}::add_{cs.name}_py,
                      "Add {cs.name} constraint", {args})\n"""
-        return f"""        .def("add_{cs.name}", &{self.program.name}Wrapper::add_{cs.name},
+        return f"""        .def("add_{cs.name}", &{wrapper_cpp_name}::add_{cs.name},
                      "Add {cs.name} constraint")\n"""

@@ -1,10 +1,10 @@
 import hashlib
+import importlib
 import logging
 import operator
 import shlex
 import shutil
 import subprocess
-import sys
 import sysconfig
 import tempfile
 import time
@@ -38,6 +38,7 @@ class Compiler:
         self.wrapper = None
         self.chr_gen = CHRGenerator(self.program)
         self.compiled = False
+        self._unique_module_name: str | None = None
 
         self.current_hash_folder: Path = (
             Path(tempfile.gettempdir()) / "default _chrpypy_compile"
@@ -52,9 +53,10 @@ class Compiler:
     def _check_cached_compilation(self) -> tuple[bool, str]:
         current_hash = self._compute_hash()
         hash_folder = self.program._folder / current_hash
+        unique_name = f"{self.program.name}_{current_hash[:16]}"
 
         if hash_folder.exists():
-            target_so = hash_folder / f"{self.program.name}.so"
+            target_so = hash_folder / f"{unique_name}.so"
             if target_so.exists():
                 logger.debug(
                     f"Found cached compilation for hash: {current_hash}"
@@ -89,8 +91,11 @@ class Compiler:
         if self.current_hash_folder is None:
             raise ValueError("Current hash folder is not set")
 
+        if self._unique_module_name is None:
+            raise ValueError("Unique module name is not set")
+
         target = (
-            self.current_hash_folder / f"{self.program.name}.so"
+            self.current_hash_folder / f"{self._unique_module_name}.so"
         ).resolve()
         if not target.exists():
             raise ValueError(
@@ -99,9 +104,12 @@ class Compiler:
 
         logger.debug(f"Importing wrapper from {target}")
 
-        sys.modules.pop(self.program.name, None)
+        importlib.invalidate_caches()
 
-        spec = util.spec_from_file_location(self.program.name, target)
+        # Each compilation gets a unique pybind11 module name
+        # (based on the content hash), so the new .so never
+        # collides with a previously loaded one in sys.modules.
+        spec = util.spec_from_file_location(self._unique_module_name, target)
         if spec is None:
             raise ValueError(
                 "Unknown error, probably a naming error or pybind11 binding error"
@@ -113,7 +121,9 @@ class Compiler:
             )
         spec.loader.exec_module(module)
 
-        return getattr(module, self.program.name)()
+        # The Python class inside the module is named with the same unique
+        # suffix to avoid pybind11 type-registration conflicts.
+        return getattr(module, self._unique_module_name)()
 
     def register_function(self, name: str, callback: Callable) -> None:
         if not self.wrapper:
@@ -200,6 +210,8 @@ class Compiler:
 
         cache_exists, current_hash = self._check_cached_compilation()
 
+        self._unique_module_name = f"{self.program.name}_{current_hash[:16]}"
+
         if self.use_cache and cache_exists:
             logger.debug(
                 f"Found cached compilation with matching rules hash: {current_hash}"
@@ -240,7 +252,7 @@ class Compiler:
         recompile_script = self.current_hash_folder / "recompile.sh"
         chrpp_file_name = f"{self.program.name}-pychr.chrpp"
         bindings_file_name = f"{self.program.name}_bindings.cpp"
-        output_so_name = f"{self.program.name}.so"
+        output_so_name = f"{self._unique_module_name}.so"
 
         base_dir_quoted = shlex.quote(str(self.program._folder))
         hash_quoted = shlex.quote(current_hash)
@@ -390,7 +402,9 @@ class Compiler:
         bindings_path = (
             self.current_hash_folder / f"{self.program.name}_bindings.cpp"
         )
-        self.chr_gen.generate_bindings_file(bindings_path)
+        self.chr_gen.generate_bindings_file(
+            bindings_path, module_name=self._unique_module_name
+        )
         logger.debug(f"Generated bindings file at {bindings_path}")
         write_to_log(f"Generated bindings file at {bindings_path}")
 
@@ -426,7 +440,7 @@ class Compiler:
             "-I",
             pybind11.get_include(),
             "-o",
-            str(self.current_hash_folder / f"{self.program.name}.so"),
+            str(self.current_hash_folder / f"{self._unique_module_name}.so"),
             "-std=c++17",
         ]
 

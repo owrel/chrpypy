@@ -548,7 +548,7 @@ class And(Guard):
 
     def to_chrpp(self) -> str:
         parts = [g.to_chrpp() for g in self.guards]
-        return " , ".join(parts)
+        return " and ".join(parts)
 
     def children(self) -> list[Guard]:
         return self.guards

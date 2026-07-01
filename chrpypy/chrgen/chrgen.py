@@ -35,8 +35,8 @@ class CHRGenerator:
         code += self.chr_block_generator.generate()
         return code
 
-    def generate_bindings(self) -> str:
-        return self.binding_generator.generate()
+    def generate_bindings(self, module_name: str | None = None) -> str:
+        return self.binding_generator.generate(module_name)
 
     def generate_callback_registry_implementation_file(
         self, output_path: Path | str, callback_registry_hh: Path | str
@@ -52,7 +52,9 @@ class CHRGenerator:
         Path(output_path).write_text(content)
         return content
 
-    def generate_bindings_file(self, output_path: Path | str) -> str:
-        content = self.generate_bindings()
+    def generate_bindings_file(
+        self, output_path: Path | str, module_name: str | None = None
+    ) -> str:
+        content = self.generate_bindings(module_name)
         Path(output_path).write_text(content)
         return content
