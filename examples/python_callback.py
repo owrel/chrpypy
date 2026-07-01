@@ -4,7 +4,7 @@
 
 import logging
 
-from chrpypy import SUCCESS, FunctionCall, Program
+from chrpypy import SUCCESS, Program
 
 logger = logging.getLogger(__name__)
 
@@ -17,15 +17,12 @@ program = Program(
 cb = program.constraint("cb", (int,))
 
 X = program.symbol("X")
+
 program.simpagation(
     negative_head=cb(X),
-    body=[FunctionCall("value", X), SUCCESS],
+    body=[program.function(print, X), SUCCESS],
 )
 
 program.compile()
-program.register_function(
-    "value",
-    print,
-)
 
 cb.post(0)

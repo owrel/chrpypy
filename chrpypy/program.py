@@ -5,8 +5,10 @@ import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from enum import Enum
+from functools import singledispatchmethod
 from pathlib import Path
-from typing import Any, Literal, Self
+from types import FunctionType
+from typing import Any, Literal, Self, overload
 
 from .compiler import Compiler
 from .constraints import Constraint, ConstraintOrigin, ConstraintStore
@@ -123,6 +125,7 @@ class Program:
         self._reset_stores: list[ConstraintStore] = []
         self._reset_rule_names: set[str] = set()
         self._first_post_done = False
+        self._pending_functions: dict[str, Callable] = {}
 
     @property
     def statistics(self) -> Statistics:
@@ -190,6 +193,7 @@ class Program:
     def add_rule(
         self, *args: Rule | list[Rule] | tuple[Rule], hold_compile: bool = False
     ) -> None:
+        self._compiled = False
         for arg in args:
             if isinstance(arg, Rule):
                 if arg.name is None:
@@ -264,6 +268,7 @@ class Program:
             body=body,
             name=name,
         )
+
         self.add_rule(rule, hold_compile=hold_compile)
         return rule
 
@@ -360,13 +365,53 @@ class Program:
                 f"Constraint {constraint.name} not found, compile the the program with Constraint definition first"
             )
 
-    def register_function(self, name: str, callback: Callable) -> None:
-        if not self._compiler.wrapper:
-            raise RuntimeError(
-                "Registering function require that the program is compiled first"
+    @overload
+    def function(self, callback: Callable, /, *args: Any) -> FunctionCall: ...
+
+    @overload
+    def function(
+        self, name: str, callback: Callable, /, *args: Any
+    ) -> FunctionCall: ...
+
+    @singledispatchmethod
+    def function(self, _: Any, /, *args: Any) -> FunctionCall:  # noqa
+        raise TypeError(
+            f"Expected a string (function name) or a callable, got {type(_).__name__}"
+        )
+
+    @function.register
+    def _from_callable(
+        self, callback: FunctionType, /, *args: Any
+    ) -> FunctionCall:
+        name: str = callback.__name__
+        if name == "<lambda>":
+            raise ValueError(
+                "Cannot auto-name a lambda, pass an explicit name: "
+                'program.function("my_name", lambda ...)'
             )
+        self._pending_functions[name] = callback
+        if self._compiler.wrapper is not None:
+            self._apply_pending_function(name)
+        return FunctionCall(name, *args)
+
+    @function.register
+    def _from_name(self, name: str, /, *args: Any) -> FunctionCall:
+        if not args:
+            raise TypeError("function() requires a callback after the name")
+        callback = args[0]
+        func_args = args[1:]
+        self._pending_functions[name] = callback
+        if self._compiler.wrapper is not None:
+            self._apply_pending_function(name)
+        return FunctionCall(name, *func_args)
+
+    def _apply_pending_function(self, name: str) -> None:
+        if self._compiler.wrapper is None:
+            return
         if hasattr(self._compiler.wrapper, "register_function"):
-            getattr(self._compiler.wrapper, "register_function")(name, callback)  # noqa
+            getattr(self._compiler.wrapper, "register_function")(  # noqa
+                name, self._pending_functions[name]
+            )
         else:
             raise RuntimeError("Did not find register function in wrapper")
 
@@ -381,8 +426,11 @@ class Program:
         self._compiler.wrapper.reset_program()
 
     def store(self) -> list[Constraint]:
+        if not self._compiled:
+            raise ValueError("Program is not compiled, cannot access store")
+
         if self._compiler.wrapper is None:
-            raise ValueError("Wrapper is None, cannot get constraints")
+            raise ValueError("Wrapper is None, cannot access store")
 
         list_str_constraint: list[str] = sorted(
             self._compiler.wrapper.get_constraint_store()

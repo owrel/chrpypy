@@ -211,6 +211,9 @@ class Compiler:
             mist_end = time.time()
             self.program._statistics.misc_time += mist_end - mist_start
             logger.debug("Using cached compilation")
+
+            for name in list(self.program._pending_functions):
+                self.program._apply_pending_function(name)
             return
 
         self.current_hash_folder = self.program._folder / current_hash
@@ -460,6 +463,9 @@ class Compiler:
         mist_end = time.time()
         self.program._statistics.misc_time += mist_end - mist_start
         write_to_log("Successfully imported wrapper module")
+
+        for name in list(self.program._pending_functions):
+            self.program._apply_pending_function(name)
 
         if load_previous_stores:
             for constraint_store_name, saved_constraints in save.items():
