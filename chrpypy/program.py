@@ -124,7 +124,6 @@ class Program:
         self._rule_counter = 0
         self._reset_stores: list[ConstraintStore] = []
         self._reset_rule_names: set[str] = set()
-        self._first_post_done = False
         self._pending_functions: dict[str, Callable] = {}
 
     @property
@@ -194,8 +193,6 @@ class Program:
         self, *args: Rule | list[Rule] | tuple[Rule], hold_compile: bool = False
     ) -> None:
         self._compiled = False
-        self._compiler.wrapper = None
-        self._compiler.compiled - False
         for arg in args:
             if isinstance(arg, Rule):
                 if arg.name is None:
@@ -321,14 +318,9 @@ class Program:
         return c
 
     def post(self, constraint: Constraint) -> None:
-        if (
-            not self._first_post_done
-            and self._compile_on == CompileTrigger.FIRST_POST
-        ):
-            if not self._compiled:
-                self._compiler.compile()
-                self._compiled = True
-            self._first_post_done = True
+        if not self._compiled and self._compile_on == CompileTrigger.FIRST_POST:
+            self._compiler.compile()
+            self._compiled = True
 
         if self.failed():
             raise RuntimeError("Program is in failure state ; cannot post")
