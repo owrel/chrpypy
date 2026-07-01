@@ -194,6 +194,8 @@ class Program:
         self, *args: Rule | list[Rule] | tuple[Rule], hold_compile: bool = False
     ) -> None:
         self._compiled = False
+        self._compiler.wrapper = None
+        self._compiler.compiled - False
         for arg in args:
             if isinstance(arg, Rule):
                 if arg.name is None:
