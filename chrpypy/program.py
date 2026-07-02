@@ -188,24 +188,40 @@ class Program:
     def __repr__(self) -> str:
         return self.__str__()
 
+    def _add_rule(self, r: Rule):
+        def find_idx(r: Rule, rules: list[Rule]) -> int:
+            for idx, rule in enumerate(rules):
+                if rule.name == r.name:
+                    return idx
+            return -1
+
+        if r.name is None:
+            r.name = f"rule{self._rule_counter}"
+            self._rule_counter += 1
+            self._rules.append(r)
+        else:
+            idx = find_idx(r, self._rules)
+            if idx == -1:
+                self._rules.append(r)
+                self._rule_counter += 1
+            else:
+                self._rules[idx] = r
+                self._rule_counter += 1
+
     def add_rule(
         self, *args: Rule | list[Rule] | tuple[Rule], hold_compile: bool = False
     ) -> None:
         self._compiler.compiled = False
         for arg in args:
             if isinstance(arg, Rule):
-                if arg.name is None:
-                    arg.name = f"rule{self._rule_counter}"
-                    self._rule_counter += 1
-                self._rules.append(arg)
+                self._add_rule(arg)
+
             elif isinstance(arg, (list, tuple)):
                 for rule in arg:
                     if not isinstance(rule, Rule):
                         raise TypeError(f"Invalid argument type: {type(rule)}")
-                    if rule.name is None:
-                        rule.name = f"rule{self._rule_counter}"
-                        self._rule_counter += 1
-                self._rules.extend(arg)
+                    self._add_rule(rule)
+
             else:
                 raise TypeError(f"Invalid argument type: {type(arg)}")
 
