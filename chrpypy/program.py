@@ -321,7 +321,6 @@ class Program:
         *,
         lazy: bool = True,
     ) -> ConstraintStore:
-        self._compiler.compiled = False
         if name in self._store_map:
             existing = self._store_map[name]
             if types is None:
@@ -331,6 +330,7 @@ class Program:
                     f"Trying to re_attribute constraint store : '{name}' with different types"
                 )
             return existing
+        self._compiler.compiled = False
         self._store_map[name] = (
             c := ConstraintStore(name, self, types, lazy=lazy)
         )
