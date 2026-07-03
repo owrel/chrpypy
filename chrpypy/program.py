@@ -321,6 +321,7 @@ class Program:
         *,
         lazy: bool = True,
     ) -> ConstraintStore:
+        self._compiler.compiled = False
         if name in self._store_map:
             raise ValueError(
                 f"Trying to re_attribute constraint store : '{name}'"
