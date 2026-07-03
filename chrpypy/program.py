@@ -380,15 +380,19 @@ class Program:
             )
 
     @overload
-    def function(self, callback: Callable, /, *args: Any) -> FunctionCall: ...
+    def function(
+        self, callback: FunctionType, /, *args: Any
+    ) -> FunctionCall: ...
 
     @overload
     def function(
-        self, name: str, callback: Callable, /, *args: Any
+        self, name: str, callback: FunctionType, /, *args: Any
     ) -> FunctionCall: ...
 
     @singledispatchmethod
-    def function(self, _: Any, /, *args: Any) -> FunctionCall:  # noqa
+    def function(self, _: Any, /, *args: Any) -> FunctionCall:
+        if callable(_):
+            return Program._from_callable(self, _, *args)
         raise TypeError(
             f"Expected a string (function name) or a callable, got {type(_).__name__}"
         )

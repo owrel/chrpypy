@@ -322,7 +322,7 @@ class ConstraintStore:
         return self.initialized
 
     def __str__(self) -> str:
-        if self.program._compiler.wrapper is not None:
+        if self.program._compiler.compiled:
             cs_content = "[" + ", ".join(str(c) for c in self.get()) + "]"
             if self.program.failed():
                 cs_content += " FAILURE"
