@@ -8,7 +8,7 @@ from enum import Enum
 from functools import singledispatchmethod
 from pathlib import Path
 from types import FunctionType
-from typing import Any, Literal, Self, overload
+from typing import Any, Literal, Self
 
 from .compiler import Compiler
 from .constraints import Constraint, ConstraintOrigin, ConstraintStore
@@ -61,10 +61,11 @@ logger = logging.getLogger(__name__)
 
 class Program:
     _id = 0
-    _chrpp_path = os.getenv(
-        "CHRPP_PATH",
-        str((Path(__file__).resolve().parent / "chrpp").resolve()),
-    )
+    _pkg_dir = Path(__file__).resolve().parent
+
+    # The C++ engine lives inside the package (bundled at build time) unless
+    # the user points CHRPP_PATH at an external installation.
+    _chrpp_path = os.getenv("CHRPP_PATH", str(_pkg_dir / "chrpp"))
 
     _chrppc_path = str(
         (Path(_chrpp_path).resolve() / "chrppc" / "chrppc").resolve()
@@ -76,12 +77,14 @@ class Program:
         (Path(_chrpp_path).resolve() / "misc" / "chrpp_extract_files").resolve()
     )
 
-    _helper_hh = str(
-        (Path(_chrpp_path).resolve() / "misc" / "helper.hh").resolve()
-    )
+    # These helpers are chrpypy's own headers, so they always ship with the
+    # package rather than depending on the external chrpp installation.
+    _helper_hh = str((_pkg_dir / "misc" / "helper.hh").resolve())
 
-    _helper_core_hh = str(
-        (Path(_chrpp_path).resolve() / "misc" / "helper_core.hh").resolve()
+    _helper_core_hh = str((_pkg_dir / "misc" / "helper_core.hh").resolve())
+
+    _helper_bindings_hh = str(
+        (_pkg_dir / "misc" / "helper_bindings.hh").resolve()
     )
 
     compile_trigger = CompileTrigger
@@ -383,16 +386,6 @@ class Program:
             raise ValueError(
                 f"Constraint {constraint.name} not found, compile the the program with Constraint definition first"
             )
-
-    @overload
-    def function(
-        self, callback: FunctionType, /, *args: Any
-    ) -> FunctionCall: ...
-
-    @overload
-    def function(
-        self, name: str, callback: FunctionType, /, *args: Any
-    ) -> FunctionCall: ...
 
     @singledispatchmethod
     def function(self, _: Any, /, *args: Any) -> FunctionCall:

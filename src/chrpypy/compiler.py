@@ -2,6 +2,7 @@ import hashlib
 import importlib
 import logging
 import operator
+import os
 import shlex
 import shutil
 import subprocess
@@ -9,6 +10,7 @@ import sysconfig
 import tempfile
 import time
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from importlib import util
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -22,6 +24,12 @@ if TYPE_CHECKING:
     from .program import Program
 
 logger = logging.getLogger(__name__)
+
+
+def _ensure_executable(path: Path) -> None:
+    """Make a bundled binary executable; wheel installs can drop the +x bit."""
+    if path.is_file() and not os.access(path, os.X_OK):
+        path.chmod(path.stat().st_mode | 0o111)
 
 
 class Compiler:
@@ -106,9 +114,6 @@ class Compiler:
 
         importlib.invalidate_caches()
 
-        # Each compilation gets a unique pybind11 module name
-        # (based on the content hash), so the new .so never
-        # collides with a previously loaded one in sys.modules.
         spec = util.spec_from_file_location(self._unique_module_name, target)
         if spec is None:
             raise ValueError(
@@ -150,7 +155,9 @@ class Compiler:
                 "An error has occured : hash folder is not initialized"
             )
 
-        extracted = [self.current_hash_folder / r for r in res]
+        extracted = [
+            self.current_hash_folder / r for r in res if r.endswith(".cpp")
+        ]
         logger.debug(f"Extracted files: {extracted}")
         return extracted
 
@@ -203,6 +210,12 @@ class Compiler:
                     f"Required path '{name}' does not exist: {path}"
                 )
             logger.debug(f"Verified {name}: {path}")
+
+        for binary in (
+            self.program._chrppc_path,
+            self.program._chrpp_extract_files,
+        ):
+            _ensure_executable(Path(binary))
 
         logger.debug("Setting up build directory")
         if not self.program._folder.exists():
@@ -257,7 +270,6 @@ class Compiler:
         base_dir_quoted = shlex.quote(str(self.program._folder))
         hash_quoted = shlex.quote(current_hash)
 
-        # Include paths for g++ (use HASH var so it follows override)
         include_flags = [
             "-I",
             '"$BASE_DIR/$HASH"',
@@ -413,24 +425,15 @@ class Compiler:
 
         so_start = time.time()
 
-        include_source = [
-            str(p) for p in self._extract_files(generated_chrpp_path)
-        ]
-
-        if self.program._retrieve_callbacks():
-            include_source.append(str(self.program._helper_hh))
+        sources = [str(p) for p in self._extract_files(generated_chrpp_path)]
+        sources.append(str(bindings_path))
 
         logger.debug("Compiling C++ shared library")
         gpp = shutil.which("g++")
         if gpp is None:
             raise RuntimeError("Could not find g++")
 
-        cmd: list[str] = [
-            gpp,
-            "-shared",
-            "-fPIC",
-            *include_source,
-            str(bindings_path),
+        include_flags = [
             "-I",
             str(self.current_hash_folder),
             "-I",
@@ -439,27 +442,81 @@ class Compiler:
             self.program._chrpp_runtime,
             "-I",
             pybind11.get_include(),
-            "-o",
-            str(self.current_hash_folder / f"{self._unique_module_name}.so"),
-            "-std=c++17",
         ]
 
-        logger.debug(f"C++ compiler command:\n {' '.join(cmd)}")
-        write_to_log(f"C++ compiler command: {' '.join(cmd)}")
+        so_path = self.current_hash_folder / f"{self._unique_module_name}.so"
 
-        try:
-            result = subprocess.run(
+        object_files: list[str] = []
+        compile_jobs: list[tuple[str, list[str]]] = []
+        for source in sources:
+            obj = str(Path(source).with_suffix(".o"))
+            object_files.append(obj)
+            cmd = [
+                gpp,
+                "-c",
+                "-fPIC",
+                source,
+                *include_flags,
+                "-o",
+                obj,
+                "-std=c++17",
+            ]
+            compile_jobs.append((source, cmd))
+            logger.debug(f"C++ compile command:\n {' '.join(cmd)}")
+            write_to_log(f"C++ compile command: {' '.join(cmd)}")
+
+        def _run_compile(job: tuple[str, list[str]]) -> tuple[str, Any]:
+            source, cmd = job
+            return source, subprocess.run(
                 cmd, check=True, capture_output=True, text=True
             )
-            if result.stdout:
-                write_to_log(f"C++ compiler output:\n{result.stdout}")
-            if result.stderr:
-                write_to_log(f"C++ compiler warnings/errors:\n{result.stderr}")
+
+        try:
+            with ThreadPoolExecutor(max_workers=os.cpu_count() or 1) as pool:
+                compile_results = list(pool.map(_run_compile, compile_jobs))
         except subprocess.CalledProcessError as e:
             so_end = time.time()
             self.program._statistics.cpp_compilation_time += so_end - so_start
             self._handle_compilation_error(e, "C++")
             error_message = f"C++ compilation failed with error:\n{e}\n"
+            if e.stderr:
+                error_message += f"Details:\n{e.stderr}"
+            raise RuntimeError(error_message) from e
+
+        for source, result in compile_results:
+            if result.stdout:
+                write_to_log(
+                    f"C++ compiler output ({source}):\n{result.stdout}"
+                )
+            if result.stderr:
+                write_to_log(
+                    f"C++ compiler warnings/errors ({source}):\n{result.stderr}"
+                )
+
+        link_cmd = [
+            gpp,
+            "-shared",
+            *object_files,
+            "-o",
+            str(so_path),
+            "-std=c++17",
+        ]
+        logger.debug(f"C++ link command:\n {' '.join(link_cmd)}")
+        write_to_log(f"C++ link command: {' '.join(link_cmd)}")
+
+        try:
+            result = subprocess.run(
+                link_cmd, check=True, capture_output=True, text=True
+            )
+            if result.stdout:
+                write_to_log(f"C++ linker output:\n{result.stdout}")
+            if result.stderr:
+                write_to_log(f"C++ linker warnings/errors:\n{result.stderr}")
+        except subprocess.CalledProcessError as e:
+            so_end = time.time()
+            self.program._statistics.cpp_compilation_time += so_end - so_start
+            self._handle_compilation_error(e, "C++")
+            error_message = f"C++ linking failed with error:\n{e}\n"
             if e.stderr:
                 error_message += f"Details:\n{e.stderr}"
             raise RuntimeError(error_message) from e

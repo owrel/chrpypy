@@ -26,10 +26,15 @@ class CHRGenerator:
         """
 
     def generate_chrpp(self) -> str:
+        helper = (
+            self.program._helper_hh
+            if self.program._retrieve_callbacks()
+            else self.program._helper_core_hh
+        )
         code = f"""#include <iostream>
             #include <string>
             #include <chrpp.hh>
-            #include <{self.program._helper_hh}>
+            #include <{helper}>
             """
 
         code += self.chr_block_generator.generate()

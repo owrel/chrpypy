@@ -31,7 +31,10 @@ class BindingGenerator:
         if self.program._retrieve_callbacks():
             includes += f"#include <{self.program._helper_hh}>\n"
         else:
-            includes += f"#include <{self.program._helper_core_hh}>\n"
+            # The bindings always need the pybind11 type casters (Arg and
+            # chr::Logical_var<T>) in addition to the core helpers, but not
+            # the callback registry.
+            includes += f"#include <{self.program._helper_bindings_hh}>\n"
 
         includes += "namespace py = pybind11;\n\n"
         return includes

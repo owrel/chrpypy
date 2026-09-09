@@ -1,137 +1,124 @@
-# noqa
 import os
 import shutil
 import subprocess
-import sys
 import tempfile
 from pathlib import Path
 
 from setuptools import find_packages, setup
-from setuptools.command.install import install
+from setuptools.command.build_py import build_py
+from setuptools.dist import Distribution
 
 CHRPP_REPO = "https://gitlab.com/vynce/chrpp"
 CHRPP_COMMIT = "eb411d7abac4a9d4fe2a84a9de29cb48123aa040"
 IGNORE_CACHE = bool(int(os.getenv("CHRPP_IGNORE_CACHE", "0")))
 
+CHRPP_CACHE = Path(tempfile.gettempdir()) / "chrpp_cache"
 
-class CustomInstall(install):
+
+_CHRPP_ARTIFACTS = [
+    "chrppc/chrppc",
+    "runtime",
+    "misc/chrpp_extract_files",
+]
+
+
+def _require(tool: str) -> str:
+    path = shutil.which(tool)
+    if not path:
+        raise RuntimeError(f"Did not find required dependency: {tool}")
+    return path
+
+
+def _build_chrpp() -> Path | None:
+    """Return the directory holding a compiled chrpp tree, or ``None`` when
+    ``CHRPP_PATH`` is set (external chrpp, nothing to bundle).
+    """
+    if os.getenv("CHRPP_PATH"):
+        print("CHRPP_PATH is set; using external chrpp (not bundled).")
+        return None
+
+    cache_path = CHRPP_CACHE
+    built = (cache_path / "chrppc" / "chrppc").exists()
+
+    if IGNORE_CACHE or not built:
+        if cache_path.exists():
+            shutil.rmtree(cache_path)
+
+        print("Cloning CHRPP...")
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        subprocess.run(
+            [_require("git"), "clone", CHRPP_REPO, str(cache_path)], check=True
+        )
+        subprocess.run(
+            [_require("git"), "-C", str(cache_path), "checkout", CHRPP_COMMIT],
+            check=True,
+        )
+
+        print("Compiling CHRPP...")
+        subprocess.run(
+            [
+                _require("cmake"),
+                "-S",
+                str(cache_path),
+                "-B",
+                str(cache_path),
+                "-DEXAMPLES=OFF",
+            ],
+            check=True,
+        )
+        subprocess.run([_require("make"), "-C", str(cache_path)], check=True)
+        print("CHRPP built successfully.")
+    else:
+        print(f"Using cached CHRPP from {cache_path}")
+
+    return cache_path
+
+
+class BuildPy(build_py):
+    """Build the Python package and bundle the compiled chrpp engine."""
+
     def run(self) -> None:
-        if not self.install_lib:
-            sys.exit(1)
-
-        install_path = Path(self.install_lib) / "chrpypy"
-        cache_path = Path(tempfile.gettempdir()) / "chrpp_cache"
-        build_path = cache_path
-
-        chrpp_path = os.getenv("CHRPP_PATH")
-
-        if chrpp_path:
-            print(
-                "CHRPP already installed (environment variable detected). Skipping compilation."
-            )
-            super().run()
-            return
-
-        if (install_path / "chrpp").exists():
-            shutil.rmtree(install_path / "chrpp")
-        install_path.mkdir(parents=True, exist_ok=True)
-
-        print("Warning : CHRPP will be installed ONLY for chrpypy")
-        try:
-            if IGNORE_CACHE and cache_path.exists():
-                shutil.rmtree(cache_path)
-
-            if not IGNORE_CACHE and cache_path.exists():
-                print("Using cached CHRPP from /tmp...")
-                shutil.copytree(cache_path, install_path / "chrpp")
-                print("CHRPP copied from cache successfully")
-
-            else:
-                print("Start cloning...")
-                cache_path.parent.mkdir(parents=True, exist_ok=True)
-
-                git = shutil.which("git")
-                if not git:
-                    raise RuntimeError("Did not find dependency: git")
-
-                subprocess.run(
-                    [git, "clone", CHRPP_REPO, str(cache_path)],
-                    check=True,
-                    capture_output=True,
-                    text=True,
-                )
-
-                subprocess.run(
-                    [git, "-C", str(cache_path), "checkout", CHRPP_COMMIT],
-                    check=True,
-                    capture_output=True,
-                    text=True,
-                )
-
-                print("CHRPP cloned successfully")
-                print("Compiling CHRPP...")
-
-                cmake = shutil.which("cmake")
-                if not cmake:
-                    raise RuntimeError("Did not find dependency: cmake")
-
-                build_path.mkdir(parents=True, exist_ok=True)
-
-                subprocess.run(
-                    [
-                        cmake,
-                        "-S",
-                        str(cache_path),
-                        "-B",
-                        str(build_path),
-                        "-DEXAMPLES=OFF",
-                    ],
-                    check=True,
-                    capture_output=True,
-                    text=True,
-                )
-
-                make = shutil.which("make")
-                if not make:
-                    raise RuntimeError("Did not find dependency: make")
-                subprocess.run(
-                    [make, "-C", str(build_path)],
-                    check=True,
-                    capture_output=True,
-                    text=True,
-                )
-
-                print("Done compiling.")
-
-                shutil.copytree(cache_path, install_path / "chrpp")
-                print("CHRPP cached for future use")
-
-            src_dir = (
-                Path(__file__).resolve().parent / "chrpypy" / "misc"
-            ).resolve()
-            dest_dir = install_path / "chrpp" / "misc"
-            dest_dir.mkdir(parents=True, exist_ok=True)
-
-            if src_dir.exists() and src_dir.is_dir():
-                for item in src_dir.iterdir():
-                    if item.is_file():
-                        shutil.copy(item, dest_dir / item.name)
-                        print(f"Copied {item.name} to chrpp/misc")
-                print("All misc files copied successfully.")
-            else:
-                raise FileNotFoundError(
-                    f"Did not find misc directory: {src_dir}"
-                )
-
-            print("Done.")
-        except Exception as e:
-            print(e)
-            raise e from e
+        chrpp_src = _build_chrpp()
 
         super().run()
 
+        if chrpp_src is None:
+            return
+
+        if getattr(self, "editable_mode", False):
+            dest = Path(self.get_package_dir("chrpypy")) / "chrpp"
+        else:
+            dest = Path(self.build_lib) / "chrpypy" / "chrpp"
+
+        if dest.exists():
+            shutil.rmtree(dest)
+
+        for rel in _CHRPP_ARTIFACTS:
+            src = chrpp_src / rel
+            if not src.exists():
+                raise FileNotFoundError(f"Missing chrpp artifact: {src}")
+
+            dst = dest / rel
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            if src.is_dir():
+                shutil.copytree(src, dst)
+            else:
+                shutil.copy2(src, dst)
+
+        print(f"Bundled chrpp engine into {dest}")
+
+
+class BinaryDistribution(Distribution):
+    """Mark the wheel as platform-specific because it bundles native binaries."""
+
+    def has_ext_modules(self) -> bool:
+        return True
+
 
 setup(
-    packages=find_packages(),
-    cmdclass={"install": CustomInstall},
+    packages=find_packages(where="src"),
+    package_dir={"": "src"},
+    package_data={"chrpypy": ["misc/*.hh"]},
+    cmdclass={"build_py": BuildPy},
+    distclass=BinaryDistribution,
 )
