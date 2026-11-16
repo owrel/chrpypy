@@ -31,7 +31,11 @@ class CHRGenerator:
             if self.program._retrieve_callbacks()
             else self.program._helper_core_hh
         )
-        code = f"""#include <iostream>
+        custom_headers = ""
+        if self.program._headers:
+            custom_headers = "\n".join(self.program._headers) + "\n"
+
+        code = f"""{custom_headers}#include <iostream>
             #include <string>
             #include <chrpp.hh>
             #include <{helper}>

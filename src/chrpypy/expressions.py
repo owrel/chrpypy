@@ -404,6 +404,36 @@ class FunctionCall(Expression):
         return self.name
 
 
+class TermCall(Expression):
+    """A plain term call, emitted as ``name(args)``.
+
+    Unlike :class:`FunctionCall`, this is not routed through the Python
+    callback registry. It represents calls nested inside a constraint
+    argument, for example the ``bar(X)`` in ``foo(bar(X))``.
+    """
+
+    def __init__(self, name: str, *args: Any):
+        self.name = name
+        self.args = [ensure_expr(arg) for arg in args]
+
+    def __repr__(self):
+        args_str = ", ".join(str(arg) for arg in self.args)
+        return f"{self.name}({args_str})"
+
+    def to_chrpp(self) -> str:
+        args_str = ", ".join(arg.to_chrpp() for arg in self.args)
+        return f"{self.name}({args_str})"
+
+    def children(self) -> list[Expression]:
+        return self.args
+
+    def node_label(self) -> str:
+        return "TermCall"
+
+    def node_symbol(self) -> str | None:
+        return self.name
+
+
 class Success(Expression):
     def __init__(self):
         pass

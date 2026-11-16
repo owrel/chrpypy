@@ -2,11 +2,8 @@
 # via the FunctionCall mechanism. Shows how to register a Python
 # callback and trigger it when a constraint is removed.
 
-import logging
 
 from chrpypy import SUCCESS, Program
-
-logger = logging.getLogger(__name__)
 
 program = Program(
     name="PyCallback",

@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from datetime import datetime
 from typing import Any
 
 
@@ -46,6 +47,10 @@ def bool_caster(input: str | bool) -> bool:  # noqa
     ) from None
 
 
+def datetime_caster(input: str) -> datetime:
+    return datetime.fromtimestamp(float(input))  # noqa
+
+
 class TypeSystem:
     # Type : (chr, cpp)
     _mapping: dict[type, tuple[str, str]] = {
@@ -53,6 +58,10 @@ class TypeSystem:
         float: ("?double", "double"),
         str: ("?std::string", "std::string"),
         bool: ("?bool", "bool"),
+        datetime: (
+            "?std::chrono::system_clock::time_point",
+            "std::chrono::system_clock::time_point",
+        ),
     }
 
     _casters: dict[type, Callable[[str], Any]] = {
@@ -60,6 +69,15 @@ class TypeSystem:
         float: float_caster,
         str: str_caster,
         bool: bool_caster,
+        datetime: datetime_caster,
+    }
+
+    _type: dict[str, type] = {
+        "int": int,
+        "float": float,
+        "str": str,
+        "bool": bool,
+        "datetime": datetime,
     }
 
     @staticmethod
@@ -109,8 +127,28 @@ class TypeSystem:
         TypeSystem._mapping[t] = (chr_type, cpp_type)
 
     @staticmethod
+    def add_type(
+        t: type,
+        chr_type: str,
+        cpp_type: str,
+        caster: Callable[[str], Any] | None,
+    ) -> None:
+
+        TypeSystem.register_custom_type(t, chr_type, cpp_type)
+        if caster is not None:
+            TypeSystem.register_custom_caster(t, caster)
+        TypeSystem._type[t.__name__] = t
+
+    @staticmethod
     def cast(value: str, python_type: type) -> Any:
         if python_type in TypeSystem._casters:
             return TypeSystem._casters[python_type](value)
 
         raise ValueError(f"Cannot cast to unsupported type: {python_type}")
+
+    @staticmethod
+    def str_to_type(value: str) -> type:
+        if value not in TypeSystem._type:
+            raise ValueError(f"{value} is not part of type system")
+
+        return TypeSystem._type[value]

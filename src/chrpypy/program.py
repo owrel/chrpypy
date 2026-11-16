@@ -13,6 +13,7 @@ from typing import Any, Literal, Self
 from .compiler import Compiler
 from .constraints import Constraint, ConstraintOrigin, ConstraintStore
 from .expressions import ANON, FunctionCall, LogicalVariable, Symbol
+from .parser import parse_rule
 from .rules import (
     AcceptedBodyType,
     AcceptedHeadType,
@@ -127,6 +128,7 @@ class Program:
         self._reset_stores: list[ConstraintStore] = []
         self._reset_rule_names: set[str] = set()
         self._pending_functions: dict[str, Callable] = {}
+        self._headers: list[str] = []
 
     @property
     def statistics(self) -> Statistics:
@@ -231,6 +233,10 @@ class Program:
         if not hold_compile and self._compile_on == CompileTrigger.RULE:
             self._compiler.compile()
 
+    def parse_rule(self, source: str, *, hold_compile: bool = False) -> Rule:
+
+        return parse_rule(source, self, hold_compile=hold_compile)
+
     def simplification(
         self,
         negative_head: AcceptedHeadType = None,
@@ -316,6 +322,17 @@ class Program:
 
     def symbols(self, *names: str) -> tuple[Symbol, ...]:
         return tuple(Symbol(name) for name in names)
+
+    @property
+    def headers(self) -> list[str]:
+        return list(self._headers)
+
+    def add_header(self, *headers: str) -> None:
+        for header in headers:
+            if not isinstance(header, str):
+                raise TypeError(f"Invalid header type: {type(header)}")
+            self._headers.append(header)
+        self._compiler.compiled = False
 
     def constraint(
         self,

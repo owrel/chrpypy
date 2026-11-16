@@ -2,9 +2,41 @@
 #define TYPE_CASTERS_HH
 
 #include "helper_core.hh"
+#include <pybind11/chrono.h>
 #include <pybind11/pybind11.h>
 
+#include <chrono>
+#include <iomanip>
+#include <sstream>
+
 namespace py = pybind11;
+
+namespace chr {
+
+/**
+ * Specialization of the chrpp to-string dispatcher for
+ * std::chrono::time_point.
+ *
+ * The chrpp runtime has no built-in representation for time points, so the
+ * generic fallback (which returns the value as-is) doesn't compile for them.
+ * Time points are rendered here as the number of seconds since the clock's
+ * epoch, which is what datetime.fromtimestamp() expects on the Python side.
+ */
+template <typename Clock, typename Duration>
+struct Type_instruction_wrapper<std::chrono::time_point<Clock, Duration>,
+                                false> {
+  static std::string
+  to_string(const std::chrono::time_point<Clock, Duration> &e) {
+    auto seconds = std::chrono::duration_cast<std::chrono::duration<double>>(
+                       e.time_since_epoch())
+                       .count();
+    std::ostringstream out;
+    out << std::setprecision(17) << seconds;
+    return out.str();
+  }
+};
+
+} // namespace chr
 
 namespace pybind11::detail {
 
@@ -55,7 +87,7 @@ public:
     return py::cast(src.to_string()).release();
   }
 
-  bool load(handle src, bool convert) { return false; }
+  bool load(handle, bool) { return false; }
 };
 
 } // namespace pybind11::detail
