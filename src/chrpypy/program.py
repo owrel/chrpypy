@@ -307,6 +307,15 @@ class Program:
                 restore_previous_state=self._restore_state_on_recompile
             )
 
+    def clear_rules(self) -> None:
+        self._rules = [
+            rule
+            for rule in self._rules
+            if rule.name is not None
+            and rule.name.startswith(self._BUILTIN_PREFIX)
+        ]
+        self._compiler.compiled = False
+
     def parse_rule(self, source: str, *, hold_compile: bool = False) -> Rule:
 
         return parse_rule(source, self, hold_compile=hold_compile)
