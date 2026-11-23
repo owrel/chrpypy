@@ -92,9 +92,6 @@ pragmas_r:
 %import python.test
 """
 
-# Earley is required here: Python's ``test`` grammar also accepts ``|``
-# (bitwise or), so the end of a CHR guard cannot be decided by a single
-# LALR lookahead. Parsing happens once, so the extra cost is irrelevant.
 parser = Lark(
     grm,
     parser="earley",

@@ -61,6 +61,7 @@ class Constraint:
 
         self.args = [ensure_expr(arg) for arg in args]
         self.pragma: str | None = None
+        self.id: int | None = None
         self._origin: ConstraintOrigin = ConstraintOrigin.PYTHON
 
     @property
@@ -287,9 +288,12 @@ class ConstraintStore:
 
     def from_chr_string(self, input: str) -> Constraint:
         name = input[: input.find("#")]
+        constraint_id = int(input[input.find("#") + 1 : input.find("(")])
         args = input[input.find("(") + 1 : -1].split(",")
         if len(self.types) == 0:
-            return Constraint(name)
+            constraint = Constraint(name)
+            constraint.id = constraint_id
+            return constraint
 
         casted_args = []
         for idx, arg in enumerate(args):
@@ -310,10 +314,12 @@ class ConstraintStore:
             if not was_logical_var:
                 casted_args.append(TypeSystem.cast(arg, self.types[idx]))
 
-        return Constraint(
+        constraint = Constraint(
             name,
             *casted_args,
         )
+        constraint.id = constraint_id
+        return constraint
 
     def reset_cache(self) -> None:
         self._cache = []

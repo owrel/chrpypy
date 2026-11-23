@@ -1,7 +1,3 @@
-# Goal: Model a piggy bank that sums coins when they are added together.
-# Shows how CHR simplification rules can reduce multiple constraints
-# into one by combining their integer arguments (I + J -> summed coin).
-
 from chrpypy import Program
 
 program = Program("bank", "bk", compile_on="compile")

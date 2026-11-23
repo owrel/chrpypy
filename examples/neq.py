@@ -1,7 +1,3 @@
-# Goal: Model inequality (neq/2) between integers using CHR rules.
-# Shows how to express failure (X != X) and prove equality when
-# both arguments are ground and different.
-
 from chrpypy import FAILURE, SUCCESS, Ground, Program
 
 program = Program(name="inequality", folder="inequality", compile_on="compile")

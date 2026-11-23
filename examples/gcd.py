@@ -1,7 +1,3 @@
-# Goal: Compute the greatest common divisor (GCD) of two integers using
-# the Euclidean algorithm encoded as CHR rules. Demonstrates logical
-# variables and the Unification mechanism for retrieving results.
-
 from chrpypy import SUCCESS, Program, Unification
 
 program = Program(name="GCD", folder="gcd", compile_on="compile")

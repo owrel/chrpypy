@@ -27,7 +27,6 @@ logger = logging.getLogger(__name__)
 
 
 def _ensure_executable(path: Path) -> None:
-    """Make a bundled binary executable; wheel installs can drop the +x bit."""
     if path.is_file() and not os.access(path, os.X_OK):
         path.chmod(path.stat().st_mode | 0o111)
 
@@ -126,8 +125,6 @@ class Compiler:
             )
         spec.loader.exec_module(module)
 
-        # The Python class inside the module is named with the same unique
-        # suffix to avoid pybind11 type-registration conflicts.
         return getattr(module, self._unique_module_name)()
 
     def register_function(self, name: str, callback: Callable) -> None:
@@ -260,8 +257,6 @@ class Compiler:
             raise ValueError("Hash folder must be a directory")
         self.program._statistics.misc_time += time.time() - time_lap
 
-        # Write recompile script early (before any compilation) so it's available
-        # even if a step fails — user can edit .chrpp or _bindings.cpp and rerun.
         recompile_script = self.current_hash_folder / "recompile.sh"
         chrpp_file_name = f"{self.program.name}-pychr.chrpp"
         bindings_file_name = f"{self.program.name}_bindings.cpp"

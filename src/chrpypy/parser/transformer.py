@@ -19,7 +19,6 @@ from .python_expr import translate_expression, translate_guard
 if TYPE_CHECKING:
     from lark.tree import Meta
 
-    from chrpypy.constraints import ConstraintStore
     from chrpypy.expressions import Expression, Failure, Guard, Success
     from chrpypy.program import Program
 
@@ -51,13 +50,7 @@ def _flatten_pragmas(children: list[Any]) -> frozenset[str]:
     return frozenset(str(child) for child in children if child is not None)
 
 
-class _DeclarationTransformer(Transformer):
-    """First pass: register constraint declarations before building rules.
-
-    This keeps rules independent from source order: a rule may appear before
-    the declaration of the constraints it mentions.
-    """
-
+class _ConstraintDeclarationTransformer(Transformer):
     def __init__(self, program: Program):
         super().__init__()
         self.program = program
@@ -75,9 +68,7 @@ class _DeclarationTransformer(Transformer):
 
 
 @v_args(meta=True)
-class CHRTransformer(Transformer):
-    """Build chrpypy objects directly from the Lark tree."""
-
+class RuleTransformer(Transformer):
     def __init__(
         self,
         source: str,
@@ -94,25 +85,6 @@ class CHRTransformer(Transformer):
     def _source_of(self, meta: Meta) -> str:
         return self.source[meta.start_pos : meta.end_pos]
 
-    # -- declarations ---------------------------------------------------
-    def type_name(self, _meta: Meta, children: list[Any]) -> type:
-        try:
-            return TypeSystem.str_to_type(str(children[0]))
-        except ValueError as exc:
-            raise ValueError(f"{exc} (line {_meta.line})") from exc
-
-    def type_list(self, _meta: Meta, children: list[Any]) -> list[type]:
-        return list(children)
-
-    def pragma_c_value(self, _meta: Meta, children: list[Any]) -> str:
-        return str(children[0])
-
-    def pragma_c_list(self, _meta: Meta, children: list[Any]) -> list[str]:
-        return list(children)
-
-    def pragmas_c(self, _meta: Meta, children: list[Any]) -> frozenset[str]:
-        return _flatten_pragmas(children)
-
     def pragma_h_value(self, _meta: Meta, children: list[Any]) -> str:
         return str(children[0])
 
@@ -125,21 +97,6 @@ class CHRTransformer(Transformer):
     def pragmas_r(self, _meta: Meta, children: list[Any]) -> frozenset[str]:
         return frozenset({"catch_failure"}) if children else frozenset()
 
-    def constraint_declaration(
-        self, _meta: Meta, children: list[Any]
-    ) -> ConstraintStore:
-        name = str(children[0])
-        type_list = children[1]
-        return self.program.constraint(
-            name, list(type_list) if type_list else []
-        )
-
-    def chr_constraint_declarations(
-        self, _meta: Meta, children: list[Any]
-    ) -> list[ConstraintStore]:
-        return list(children)
-
-    # -- expressions ----------------------------------------------------
     def arg_expr(self, meta: Meta, _children: list[Any]) -> Expression:
         return translate_expression(self._source_of(meta))
 
@@ -166,7 +123,6 @@ class CHRTransformer(Transformer):
 
         return And(*guards)
 
-    # -- heads and bodies -----------------------------------------------
     def constraint(self, _meta: Meta, children: list[Any]) -> Constraint:
         name = str(children[0])
         args = children[1]
@@ -239,7 +195,6 @@ class CHRTransformer(Transformer):
     ) -> list[Constraint | FunctionCall | Success | Failure]:
         return children[0]
 
-    # -- rules ----------------------------------------------------------
     def propagation_rule(
         self, _meta: Meta, children: list[Any]
     ) -> PropagationRule:
@@ -283,6 +238,5 @@ class CHRTransformer(Transformer):
         self.rules.append(rule)
         return rule
 
-    # -- root -----------------------------------------------------------
     def start(self, _meta: Meta, _children: list[Any]) -> list[Rule]:
         return self.rules

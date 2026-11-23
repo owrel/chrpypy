@@ -1,14 +1,16 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from lark.exceptions import LarkError, VisitError
+from lark.tree import Tree
 
 from .parser import parser
-from .transformer import CHRTransformer, _DeclarationTransformer
+from .transformer import RuleTransformer, _ConstraintDeclarationTransformer
 
 if TYPE_CHECKING:
-    from lark.tree import Tree
+    from pathlib import Path
+
     from lark.visitors import Transformer
 
     from chrpypy.program import Program
@@ -23,19 +25,54 @@ def _transform(transformer: Transformer, tree: Tree) -> Any:
         raise exc.orig_exc from exc
 
 
-def parse(
+def _split_statements(tree: Tree) -> tuple[Tree, Tree]:
+    """Separate a parsed source into declaration and rule statements.
+
+    This makes the ordering explicit: declarations are always applied before
+    rules, regardless of the order they appear in the source.
+    """
+    declarations: list[Tree] = []
+    rules: list[Tree] = []
+    for statement in tree.children:
+        if statement.data == "chr_constraint_declarations":
+            declarations.append(statement)
+        elif statement.data == "chr_rule":
+            rules.append(statement)
+        else:
+            raise ValueError(f"Unexpected statement: {statement.data}")
+
+    return Tree("start", declarations), Tree("start", rules)
+
+
+def parse_program(
     source: str,
-    program: Program,
+    name: str | None = None,
     *,
+    folder: Path | str | None = None,
+    use_cache: bool = True,
+    compile_on: Literal["first_post", "rule", "compile"] = "compile",
+    max_history: int = 50,
+    auto_reset_rules: bool = True,
     hold_compile: bool = True,
 ) -> Program:
-    """Parse a full CHR source and add declarations/rules to ``program``."""
-    tree = parser.parse(source)
+    from chrpypy.program import Program  # noqa: PLC0415
 
-    # Register declarations first so rules are independent from source order.
-    _transform(_DeclarationTransformer(program), tree)
+    program = Program(
+        name=name,
+        folder=folder,
+        use_cache=use_cache,
+        compile_on=compile_on,
+        max_history=max_history,
+        auto_reset_rules=auto_reset_rules,
+    )
 
-    _transform(CHRTransformer(source, program, hold_compile=hold_compile), tree)
+    declarations, rules = _split_statements(parser.parse(source))
+
+    # Declarations first, then rules, independently of source order.
+    _transform(_ConstraintDeclarationTransformer(program), declarations)
+    _transform(
+        RuleTransformer(source, program, hold_compile=hold_compile), rules
+    )
     return program
 
 
@@ -45,15 +82,9 @@ def parse_rule(
     *,
     hold_compile: bool = False,
 ) -> Rule:
-    """Parse a single CHR rule and add it to ``program``.
 
-    The trailing ``;;`` terminator is optional.
-    """
     text = source.strip()
 
-    # The ``;;`` terminator is optional. When the input is only a constraint
-    # declaration, appending it would make the source invalid, so retry
-    # without it before reporting a parse error.
     candidates = [text] if text.endswith(";;") else [f"{text} ;;", text]
     tree = None
     first_error: LarkError | None = None
@@ -83,7 +114,7 @@ def parse_rule(
             f"parse_rule expects exactly one rule, got {rule_count}"
         )
 
-    transformer = CHRTransformer(
+    transformer = RuleTransformer(
         used_source, program, hold_compile=hold_compile
     )
     rules = _transform(transformer, tree)

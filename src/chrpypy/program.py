@@ -64,8 +64,6 @@ class Program:
     _id = 0
     _pkg_dir = Path(__file__).resolve().parent
 
-    # The C++ engine lives inside the package (bundled at build time) unless
-    # the user points CHRPP_PATH at an external installation.
     _chrpp_path = os.getenv("CHRPP_PATH", str(_pkg_dir / "chrpp"))
 
     _chrppc_path = str(
@@ -78,8 +76,6 @@ class Program:
         (Path(_chrpp_path).resolve() / "misc" / "chrpp_extract_files").resolve()
     )
 
-    # These helpers are chrpypy's own headers, so they always ship with the
-    # package rather than depending on the external chrpp installation.
     _helper_hh = str((_pkg_dir / "misc" / "helper.hh").resolve())
 
     _helper_core_hh = str((_pkg_dir / "misc" / "helper_core.hh").resolve())
@@ -356,6 +352,12 @@ class Program:
         )
 
         return c
+
+    def get_constraint(self, name: str) -> ConstraintStore:
+        try:
+            return self._store_map[name]
+        except KeyError:
+            raise KeyError(f"Unknown constraint '{name}'") from None
 
     def post(self, constraint: Constraint) -> None:
         if (

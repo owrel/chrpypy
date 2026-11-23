@@ -1,8 +1,3 @@
-# Goal: Demonstrate color mixing using a factorized constraint representation.
-# A single parameterized `color/1` constraint represents all colors,
-# with rules that combine two colors into a third (e.g., red + blue -> purple).
-# Also shows ANON (anonymous variable) usage and duplicate removal.
-
 from chrpypy import ANON, Program
 
 program = Program("ColorPalette", "cpf", compile_on="compile")

@@ -1,7 +1,3 @@
-# Goal: Generate prime numbers up to a given limit using a CHR-encoded
-# Sieve of Eratosthenes. Demonstrates simpagation rules that remove
-# non-prime candidates.
-
 from chrpypy import SUCCESS, Program
 
 nb = 1000

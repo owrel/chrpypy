@@ -1,7 +1,3 @@
-# Goal: Model a partial order relation (leq/2) using CHR rules.
-# Showcases reflexivity, antisymmetry, idempotence, and transitivity
-# — the classic CHR "constraint solver for less-or-equal" example.
-
 from chrpypy import SUCCESS, Program, Unification
 
 program = Program(
