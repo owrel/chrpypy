@@ -12,7 +12,7 @@ from typing import Any, Literal, Self, cast
 
 from .compiler import Compiler
 from .constraints import Constraint, ConstraintOrigin, ConstraintStore
-from .expressions import ANON, FunctionCall, LogicalVariable, Symbol
+from .expressions import ANON, Constant, FunctionCall, LogicalVariable, Symbol
 from .parser import parse_rule
 from .rules import (
     AcceptedBodyType,
@@ -316,6 +316,52 @@ class Program:
         ]
         self._compiler.compiled = False
 
+    def clear_constraints(self) -> None:
+        removed_stores = [
+            constraint_store
+            for name, constraint_store in self._store_map.items()
+            if not name.startswith(self._BUILTIN_PREFIX)
+        ]
+
+        removed_reset_rule_names: set[str] = set()
+        for constraint_store in removed_stores:
+            reset_name = (
+                constraint_store._get_associated_reset_constraint_name()
+            )
+            reset_store = self._store_map.pop(reset_name, None)
+            if reset_store is not None and reset_store in self._reset_stores:
+                self._reset_stores.remove(reset_store)
+            removed_reset_rule_names.add(f"{reset_name}_consume")
+            removed_reset_rule_names.add(f"{reset_name}_stop_consume")
+            self._store_map.pop(constraint_store.name, None)
+
+        self._rules = [
+            rule
+            for rule in self._rules
+            if rule.name not in removed_reset_rule_names
+        ]
+        self._reset_rule_names -= removed_reset_rule_names
+        self._compiler.compiled = False
+
+    def _constraint_matches_definition(self, constraint: Constraint) -> bool:
+        constraint_store = self._store_map.get(constraint.name)
+        if constraint_store is None or not constraint_store.initialized:
+            return False
+        if len(constraint.args) != len(constraint_store.types):
+            return False
+        for arg, expected_type in zip(
+            constraint.args, constraint_store.types, strict=True
+        ):
+            if isinstance(arg, LogicalVariable):
+                if arg._type is not expected_type:
+                    return False
+            elif isinstance(arg, Constant):
+                if type(arg.value) is not expected_type:
+                    return False
+            else:
+                return False
+        return True
+
     def parse_rule(self, source: str, *, hold_compile: bool = False) -> Rule:
 
         return parse_rule(source, self, hold_compile=hold_compile)
@@ -593,13 +639,17 @@ class Program:
         ret = []
         for str_constraint in list_str_constraint:
             store_name = str_constraint[: str_constraint.find("#")]
+            constraint_store = self._store_map.get(store_name)
+            if constraint_store is None:
+                continue
             if not include_builtins and store_name.startswith(
                 self._BUILTIN_PREFIX
             ):
                 continue
-            constraint = self._store_map[store_name].from_chr_string(
-                str_constraint
-            )
+            try:
+                constraint = constraint_store.from_chr_string(str_constraint)
+            except (IndexError, TypeError, ValueError):
+                continue
             constraint._origin = ConstraintOrigin.CHRPP
             ret.append(constraint)
         return ret

@@ -235,6 +235,10 @@ class Compiler:
         try:
             for saved_constraints in saved_state.values():
                 for constraint in saved_constraints:
+                    if not self.program._constraint_matches_definition(
+                        constraint
+                    ):
+                        continue
                     self.program.post(constraint)
         finally:
             self._ensure_activation()
