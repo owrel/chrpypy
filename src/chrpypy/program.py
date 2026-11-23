@@ -8,7 +8,7 @@ from enum import Enum
 from functools import singledispatchmethod
 from pathlib import Path
 from types import FunctionType
-from typing import Any, Literal, Self
+from typing import Any, Literal, Self, cast
 
 from .compiler import Compiler
 from .constraints import Constraint, ConstraintOrigin, ConstraintStore
@@ -86,6 +86,10 @@ class Program:
 
     compile_trigger = CompileTrigger
 
+    _BUILTIN_PREFIX = "builtin_"
+    _BUILTIN_ACTIVE_NAME = f"{_BUILTIN_PREFIX}active"
+    _BUILTIN_DEACTIVATE_NAME = f"{_BUILTIN_PREFIX}deactivate"
+
     def __init__(
         self,
         name: str | None = None,
@@ -95,13 +99,25 @@ class Program:
         compile_on: Literal["first_post", "rule", "compile"] = "first_post",
         max_history: int = 50,
         auto_reset_rules: bool = True,
+        builtin_rules_activation: bool = True,
+        restore_state_on_recompile: bool = True,
     ) -> None:
         self._id = Program._id
         Program._id += 1
 
         self.name = name or f"program{Program._id}"
 
-        self._auto_reset_rules = auto_reset_rules
+        self._builtin_reset_rules = auto_reset_rules
+        self._builtin_rules_activation = builtin_rules_activation
+        self._restore_state_on_recompile = restore_state_on_recompile
+
+        if (
+            self._restore_state_on_recompile
+            and not self._builtin_rules_activation
+        ):
+            raise ValueError(
+                "restore_state_on_recompile requires builtin_rules_activation"
+            )
 
         if folder is None:
             tempdir = tempfile.gettempdir()
@@ -125,6 +141,31 @@ class Program:
         self._reset_rule_names: set[str] = set()
         self._pending_functions: dict[str, Callable] = {}
         self._headers: list[str] = []
+
+        if self._builtin_rules_activation:
+            self._store_map[self._BUILTIN_ACTIVE_NAME] = ConstraintStore(
+                self._BUILTIN_ACTIVE_NAME,
+                self,
+                [],
+                lazy=False,
+                with_reset=False,
+            )
+            self._store_map[self._BUILTIN_DEACTIVATE_NAME] = ConstraintStore(
+                self._BUILTIN_DEACTIVATE_NAME,
+                self,
+                [],
+                lazy=False,
+                with_reset=False,
+            )
+            self._rules.append(
+                SimplificationRule(
+                    name=f"{self._BUILTIN_DEACTIVATE_NAME}_consume",
+                    negative_head=[
+                        self._store_map[self._BUILTIN_DEACTIVATE_NAME](),
+                        self._store_map[self._BUILTIN_ACTIVE_NAME](),
+                    ],
+                )
+            )
 
     @property
     def statistics(self) -> Statistics:
@@ -209,19 +250,54 @@ class Program:
                 self._rules[idx] = r
                 self._rule_counter += 1
 
+    def _with_builtin_activation(self, rule: Rule) -> Rule:
+        if not self._builtin_rules_activation:
+            return rule
+
+        token = Constraint(self._BUILTIN_ACTIVE_NAME)
+        token.pragma = "passive"
+
+        if isinstance(rule, PropagationRule):
+            return PropagationRule(
+                positive_head=[token, *rule.positive_head],
+                guard=rule.guard,
+                body=cast("AcceptedBodyType", rule.body),
+                name=rule.name,
+            )
+
+        if isinstance(rule, SimpagationRule):
+            return SimpagationRule(
+                positive_head=[token, *rule.positive_head],
+                negative_head=rule.negative_head,
+                guard=rule.guard,
+                body=cast("AcceptedBodyType", rule.body),
+                name=rule.name,
+            )
+
+        if not isinstance(rule, SimplificationRule):
+            raise TypeError(f"Unsupported rule type: {type(rule).__name__}")
+
+        return SimpagationRule(
+            positive_head=[token],
+            negative_head=rule.negative_head,
+            guard=rule.guard,
+            body=cast("AcceptedBodyType", rule.body),
+            name=rule.name,
+        )
+
     def add_rule(
         self, *args: Rule | list[Rule] | tuple[Rule], hold_compile: bool = False
     ) -> None:
         self._compiler.compiled = False
         for arg in args:
             if isinstance(arg, Rule):
-                self._add_rule(arg)
+                self._add_rule(self._with_builtin_activation(arg))
 
             elif isinstance(arg, (list, tuple)):
                 for rule in arg:
                     if not isinstance(rule, Rule):
                         raise TypeError(f"Invalid argument type: {type(rule)}")
-                    self._add_rule(rule)
+                    self._add_rule(self._with_builtin_activation(rule))
 
             else:
                 raise TypeError(f"Invalid argument type: {type(arg)}")
@@ -289,6 +365,11 @@ class Program:
 
         self.add_rule(rule, hold_compile=hold_compile)
         return rule
+
+    def _register_logical_vars(self, wrapper: Any) -> None:
+        for logical_var in self._logical_variable_map.values():
+            method_name = f"set_logical_var_{logical_var._type.__name__}"
+            getattr(wrapper, method_name)(logical_var.name)
 
     def logicalvar(self, name: str, _type: Any) -> LogicalVariable:
         self._logical_variable_map[name] = LogicalVariable(name, _type, self)
@@ -460,10 +541,36 @@ class Program:
             raise ValueError("Wrapper is None, cannot reset program")
         self._compiler.wrapper.reset_program()
 
-    def store(self) -> list[Constraint]:
-        if not self._compiler.compiled:
-            raise ValueError("Program is not compiled, cannot access store")
+    def _require_builtin_rules_activation(self) -> None:
+        if not self._builtin_rules_activation:
+            raise RuntimeError(
+                "builtin_rules_activation is disabled for this program"
+            )
 
+    def suppress_rules(self) -> None:
+        self._require_builtin_rules_activation()
+        if self._compiler.wrapper is None:
+            raise ValueError("Wrapper is None, cannot suppress rules")
+        if not self.get_activation_state():
+            return
+        self._store_map[self._BUILTIN_DEACTIVATE_NAME].post()
+
+    def activate_rules(self) -> None:
+        self._require_builtin_rules_activation()
+        if self._compiler.wrapper is None:
+            raise ValueError("Wrapper is None, cannot activate rules")
+        active = self._store_map[self._BUILTIN_ACTIVE_NAME]
+        if active.get():
+            return
+        active.post()
+
+    def get_activation_state(self) -> bool:
+        self._require_builtin_rules_activation()
+        if self._compiler.wrapper is None:
+            raise ValueError("Wrapper is None, cannot get activation state")
+        return bool(self._store_map[self._BUILTIN_ACTIVE_NAME].get())
+
+    def store(self, *, include_builtins: bool = True) -> list[Constraint]:
         if self._compiler.wrapper is None:
             raise ValueError("Wrapper is None, cannot access store")
 
@@ -472,9 +579,14 @@ class Program:
         )
         ret = []
         for str_constraint in list_str_constraint:
-            constraint = self._store_map[
-                str_constraint[: str_constraint.find("#")]
-            ].from_chr_string(str_constraint)
+            store_name = str_constraint[: str_constraint.find("#")]
+            if not include_builtins and store_name.startswith(
+                self._BUILTIN_PREFIX
+            ):
+                continue
+            constraint = self._store_map[store_name].from_chr_string(
+                str_constraint
+            )
             constraint._origin = ConstraintOrigin.CHRPP
             ret.append(constraint)
         return ret
@@ -483,19 +595,59 @@ class Program:
         self._compiler.compile()
         return self
 
-    def chr(self, *, include_reset_rules: bool = False) -> str:
-        if include_reset_rules:
-            rules = self._rules
-        else:
-            rules = [
-                r for r in self._rules if r.name not in self._reset_rule_names
-            ]
+    def _display_rules(self, *, include_builtins: bool) -> list[Rule]:
+        if include_builtins:
+            return self._rules
+
+        rules = []
+        for rule in self._rules:
+            if rule.name is not None and rule.name.startswith(
+                self._BUILTIN_PREFIX
+            ):
+                continue
+            rules.append(self._without_builtin_activation(rule))
+        return rules
+
+    def _without_builtin_activation(self, rule: Rule) -> Rule:
+        if not rule.positive_head:
+            return rule
+
+        first_head = rule.positive_head[0]
+        if not (
+            isinstance(first_head, Constraint)
+            and first_head.name == self._BUILTIN_ACTIVE_NAME
+        ):
+            return rule
+
+        positive_head = rule.positive_head[1:]
+
+        if isinstance(rule, PropagationRule):
+            return PropagationRule(
+                positive_head=positive_head,
+                guard=rule.guard,
+                body=cast("AcceptedBodyType", rule.body),
+                name=rule.name,
+            )
+
+        if isinstance(rule, SimpagationRule):
+            return SimpagationRule(
+                positive_head=positive_head,
+                negative_head=rule.negative_head,
+                guard=rule.guard,
+                body=cast("AcceptedBodyType", rule.body),
+                name=rule.name,
+            )
+
+        return rule
+
+    def chr(self, *, include_builtins: bool = False) -> str:
+        rules = self._display_rules(include_builtins=include_builtins)
         return "\n".join([rule.to_str() for rule in rules])
 
-    def to_chrpp(self, *, include_reset_rules: bool = False) -> str:
-        exclude_names = None if include_reset_rules else self._reset_rule_names
+    def to_chrpp(self, *, include_builtins: bool = False) -> str:
         return self._compiler.chr_gen.chr_block_generator.generate(
-            exclude_rule_names=exclude_names
+            rules=self._display_rules(include_builtins=include_builtins),
+            include_builtins=include_builtins,
         )
 
     def reset_store(self) -> list[Constraint]:

@@ -18,7 +18,6 @@ if TYPE_CHECKING:
 
 
 def _transform(transformer: Transformer, tree: Tree) -> Any:
-    """Transform while surfacing domain errors instead of Lark's wrapper."""
     try:
         return transformer.transform(tree)
     except VisitError as exc:
@@ -26,11 +25,7 @@ def _transform(transformer: Transformer, tree: Tree) -> Any:
 
 
 def _split_statements(tree: Tree) -> tuple[Tree, Tree]:
-    """Separate a parsed source into declaration and rule statements.
 
-    This makes the ordering explicit: declarations are always applied before
-    rules, regardless of the order they appear in the source.
-    """
     declarations: list[Tree] = []
     rules: list[Tree] = []
     for statement in tree.children:

@@ -32,6 +32,8 @@ BodyType: TypeAlias = list[
 
 def format_constraint(constraint: Constraint) -> str:
     if not constraint.args:
+        if constraint.pragma:
+            return f"{constraint.name}()#{constraint.pragma}"
         return f"{constraint.name}()"
 
     args_str = ", ".join(arg.to_chrpp() for arg in constraint.args)

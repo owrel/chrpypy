@@ -207,7 +207,7 @@ class LogicalVariable(Expression):
                     "Did not found the associated registry to get value"
                 )
 
-            return self._type(val)
+            return TypeSystem.cast(val, self._type)
 
         raise RuntimeError("Did not found the associated registry to get value")
 

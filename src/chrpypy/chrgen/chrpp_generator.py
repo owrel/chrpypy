@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING
 
+from ..rules import Rule
 from ..typesystem import TypeSystem
 
 if TYPE_CHECKING:
@@ -10,11 +11,17 @@ class CHRPPGenerator:
     def __init__(self, program: "Program"):
         self.program = program
 
-    def _get_constraint_signatures(self) -> list[str]:
+    def _get_constraint_signatures(
+        self, *, include_builtins: bool = True
+    ) -> list[str]:
         signatures = set()
         for cs in sorted(
             self.program._store_map.values(), key=lambda x: x.name
         ):
+            if not include_builtins and cs.name.startswith(
+                self.program._BUILTIN_PREFIX
+            ):
+                continue
             if not cs.initialized:
                 raise RuntimeError(
                     f"The constraint store {cs.name} is not initialized. Please provided concrete type description or make sure that type can be DIRECLTY infered from the args passed in the constraint"
@@ -24,8 +31,15 @@ class CHRPPGenerator:
             signatures.add(signature)
         return sorted(signatures)
 
-    def generate(self, exclude_rule_names: set[str] | None = None) -> str:
-        signatures = self._get_constraint_signatures()
+    def generate(
+        self,
+        rules: list[Rule] | None = None,
+        *,
+        include_builtins: bool = True,
+    ) -> str:
+        signatures = self._get_constraint_signatures(
+            include_builtins=include_builtins
+        )
 
         chr_block = "/**\n"
         if self.program._retrieve_callbacks():
@@ -35,9 +49,8 @@ class CHRPPGenerator:
 
         chr_block += f"\t<chr_constraint> {', '.join(signatures)}\n"
 
-        rules = self.program._rules
-        if exclude_rule_names:
-            rules = [r for r in rules if r.name not in exclude_rule_names]
+        if rules is None:
+            rules = self.program._rules
 
         for rule in rules:
             chr_block += "\t\t" + rule.to_chrpp()

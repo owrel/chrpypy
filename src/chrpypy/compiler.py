@@ -18,9 +18,10 @@ from typing import TYPE_CHECKING, Any
 import pybind11
 
 from .chrgen import CHRGenerator
+from .constraints import LOGICAL_VAR_RE, Constraint
+from .typesystem import TypeSystem
 
 if TYPE_CHECKING:
-    from .constraints import Constraint
     from .program import Program
 
 logger = logging.getLogger(__name__)
@@ -125,7 +126,9 @@ class Compiler:
             )
         spec.loader.exec_module(module)
 
-        return getattr(module, self._unique_module_name)()
+        wrapper = getattr(module, self._unique_module_name)()
+        self.program._register_logical_vars(wrapper)
+        return wrapper
 
     def register_function(self, name: str, callback: Callable) -> None:
         if not self.wrapper:
@@ -181,13 +184,69 @@ class Compiler:
             error_file.write_text(error_message)
             logger.error(f"Compilation error saved to {error_file}")
 
-    def compile(self, *, load_previous_stores: bool = True) -> None:
-        save: dict[str, list[Constraint]] = {}
-        if load_previous_stores and self.compiled and self.program._store_map:
-            for constraint_store_name in self.program._store_map:
-                save[constraint_store_name] = self.program._store_map[
-                    constraint_store_name
-                ].get()
+    def _save_state_for_restore(self) -> dict[str, list[Constraint]]:
+        if self.wrapper is None:
+            return {}
+
+        builtin_names = (
+            self.program._BUILTIN_ACTIVE_NAME,
+            self.program._BUILTIN_DEACTIVATE_NAME,
+        )
+        saved_state: dict[str, list[Constraint]] = {}
+        reset_stores = self.program._reset_stores
+        for (
+            constraint_store_name,
+            constraint_store,
+        ) in self.program._store_map.items():
+            if constraint_store_name in builtin_names:
+                continue
+            if constraint_store in reset_stores:
+                continue
+            saved_state[constraint_store_name] = constraint_store.get()
+        return saved_state
+
+    def _save_grounded_logical_vars(self) -> dict[str, Any]:
+        if self.wrapper is None:
+            return {}
+
+        grounded: dict[str, Any] = {}
+        for name, logical_var in self.program._logical_variable_map.items():
+            raw = logical_var._get_value_raw()
+            if LOGICAL_VAR_RE.match(raw.strip()):
+                continue
+            grounded[name] = TypeSystem.cast(raw, logical_var._type)
+        return grounded
+
+    def _restore_grounded_logical_vars(self, grounded: dict[str, Any]) -> None:
+        for name, value in grounded.items():
+            self.program._logical_variable_map[name].unify(value)
+
+    def _ensure_activation(self) -> None:
+        if self.program._builtin_rules_activation and not self.program.failed():
+            self.program.activate_rules()
+
+    def _restore_saved_state(
+        self, saved_state: dict[str, list[Constraint]]
+    ) -> None:
+        if not saved_state:
+            return
+
+        self.program.suppress_rules()
+        try:
+            for saved_constraints in saved_state.values():
+                for constraint in saved_constraints:
+                    self.program.post(constraint)
+        finally:
+            self._ensure_activation()
+
+    def compile(self, *, restore_previous_state: bool = True) -> None:
+        restore_state = (
+            restore_previous_state
+            and self.program._restore_state_on_recompile
+            and self.program._builtin_rules_activation
+        )
+        saved_state = self._save_state_for_restore() if restore_state else {}
+        grounded = self._save_grounded_logical_vars() if restore_state else {}
 
         logger.debug("Starting compilation process")
         time_lap = time.time()
@@ -234,8 +293,11 @@ class Compiler:
             self.program._statistics.misc_time += mist_end - mist_start
             logger.debug("Using cached compilation")
 
+            self._restore_grounded_logical_vars(grounded)
             for name in list(self.program._pending_functions):
                 self.program._apply_pending_function(name)
+            self._restore_saved_state(saved_state)
+            self._ensure_activation()
             return
 
         self.current_hash_folder = self.program._folder / current_hash
@@ -530,14 +592,13 @@ class Compiler:
         self.program._statistics.misc_time += mist_end - mist_start
         write_to_log("Successfully imported wrapper module")
 
+        self._restore_grounded_logical_vars(grounded)
         for name in list(self.program._pending_functions):
             self.program._apply_pending_function(name)
 
-        if load_previous_stores:
-            for constraint_store_name, saved_constraints in save.items():
-                self.program._store_map[constraint_store_name].posts(
-                    saved_constraints
-                )
+        if restore_state:
+            self._restore_saved_state(saved_state)
+        self._ensure_activation()
 
         logger.debug("Compilation process completed successfully")
         write_to_log("Compilation process completed successfully")
