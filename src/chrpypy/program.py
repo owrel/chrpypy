@@ -303,7 +303,9 @@ class Program:
                 raise TypeError(f"Invalid argument type: {type(arg)}")
 
         if not hold_compile and self._compile_on == CompileTrigger.RULE:
-            self._compiler.compile()
+            self._compiler.compile(
+                restore_previous_state=self._restore_state_on_recompile
+            )
 
     def parse_rule(self, source: str, *, hold_compile: bool = False) -> Rule:
 
@@ -445,7 +447,9 @@ class Program:
             not self._compiler.compiled
             and self._compile_on == CompileTrigger.FIRST_POST
         ):
-            self._compiler.compile()
+            self._compiler.compile(
+                restore_previous_state=self._restore_state_on_recompile
+            )
 
         if not self._compiler.compiled:
             raise ValueError("Cannot post without a compiled program")
@@ -591,8 +595,10 @@ class Program:
             ret.append(constraint)
         return ret
 
-    def compile(self) -> Self:
-        self._compiler.compile()
+    def compile(self, *, restore_previous_state: bool | None = None) -> Self:
+        if restore_previous_state is None:
+            restore_previous_state = self._restore_state_on_recompile
+        self._compiler.compile(restore_previous_state=restore_previous_state)
         return self
 
     def _display_rules(self, *, include_builtins: bool) -> list[Rule]:

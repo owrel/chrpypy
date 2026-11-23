@@ -239,11 +239,9 @@ class Compiler:
         finally:
             self._ensure_activation()
 
-    def compile(self, *, restore_previous_state: bool = True) -> None:
+    def compile(self, *, restore_previous_state: bool) -> None:
         restore_state = (
-            restore_previous_state
-            and self.program._restore_state_on_recompile
-            and self.program._builtin_rules_activation
+            restore_previous_state and self.program._builtin_rules_activation
         )
         saved_state = self._save_state_for_restore() if restore_state else {}
         grounded = self._save_grounded_logical_vars() if restore_state else {}
