@@ -629,7 +629,7 @@ class Program:
             raise ValueError("Wrapper is None, cannot get activation state")
         return bool(self._store_map[self._BUILTIN_ACTIVE_NAME].get())
 
-    def store(self, *, include_builtins: bool = True) -> list[Constraint]:
+    def store(self, *, include_builtins: bool = False) -> list[Constraint]:
         if self._compiler.wrapper is None:
             raise ValueError("Wrapper is None, cannot access store")
 
