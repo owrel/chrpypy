@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any, Literal
 from lark.visitors import Transformer, v_args
 
 from chrpypy.constraints import Constraint
-from chrpypy.expressions import FAILURE, SUCCESS, And, FunctionCall
+from chrpypy.expressions import FAILURE, SUCCESS, And, FunctionCall, Unification
 from chrpypy.rules import (
     PropagationRule,
     Rule,
@@ -173,16 +173,21 @@ class RuleTransformer(Transformer):
     ) -> Success | Failure:
         return SUCCESS if children[0] == "success" else FAILURE
 
+    def unification(self, _meta: Meta, children: list[Any]) -> Unification:
+        return Unification(children[0], children[1])
+
     def body_constraint(
         self, _meta: Meta, children: list[Any]
-    ) -> list[Constraint | FunctionCall | Success | Failure]:
+    ) -> list[Constraint | FunctionCall | Success | Failure | Unification]:
         child = children[0]
         return child if isinstance(child, list) else [child]
 
     def body_constraints(
         self, _meta: Meta, children: list[Any]
-    ) -> list[Constraint | FunctionCall | Success | Failure]:
-        items: list[Constraint | FunctionCall | Success | Failure] = []
+    ) -> list[Constraint | FunctionCall | Success | Failure | Unification]:
+        items: list[
+            Constraint | FunctionCall | Success | Failure | Unification
+        ] = []
         for child in children:
             if isinstance(child, list):
                 items.extend(child)
@@ -192,7 +197,7 @@ class RuleTransformer(Transformer):
 
     def body(
         self, _meta: Meta, children: list[Any]
-    ) -> list[Constraint | FunctionCall | Success | Failure]:
+    ) -> list[Constraint | FunctionCall | Success | Failure | Unification]:
         return children[0]
 
     def propagation_rule(

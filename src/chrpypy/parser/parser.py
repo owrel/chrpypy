@@ -72,8 +72,10 @@ guard_expr: test
 body: body_constraints
 
 body_constraints: body_constraint (("," | ";") body_constraint)*
-body_constraint: "(" body_constraints ")" | body_atom | body_literal
+body_constraint: "(" body_constraints ")" | body_atom | body_literal | unification
 body_atom: constraint pragmas_r
+// Unification goal, e.g. X %= Y
+unification: arg_expr "%=" arg_expr
 
 TRUE_LIT: "true"
 FALSE_LIT: "false"

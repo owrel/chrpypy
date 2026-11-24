@@ -2,7 +2,9 @@
 
 A Python CHR implementation using [chrpp](https://vynce.gitlab.io/chrpp/) as backend
 
-# Installation Requirements
+## Installation Requirements
+
+Python >= 3.13 (3.14 recommended).
 
 ## System Dependencies (Linux):
 
