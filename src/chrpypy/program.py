@@ -603,10 +603,10 @@ class Program:
             raise ValueError("Wrapper is None, cannot reset program")
         self._compiler.wrapper.reset_program()
 
-    def get_trace(self) -> str:
+    def get_traces(self) -> str:
         if self._compiler.wrapper is None:
             raise ValueError("Wrapper is None, cannot access trace")
-        return self._compiler.wrapper.get_trace()
+        return self._compiler.wrapper.get_traces()
 
     def _require_builtin_rules_activation(self) -> None:
         if not self._builtin_rules_activation:
