@@ -49,6 +49,7 @@ def parse_program(
     max_history: int = 50,
     auto_reset_rules: bool = True,
     hold_compile: bool = True,
+    allow_python_calls: bool = True,
 ) -> Program:
     from chrpypy.program import Program  # noqa: PLC0415
 
@@ -66,7 +67,13 @@ def parse_program(
     # Declarations first, then rules, independently of source order.
     _transform(_ConstraintDeclarationTransformer(program), declarations)
     _transform(
-        RuleTransformer(source, program, hold_compile=hold_compile), rules
+        RuleTransformer(
+            source,
+            program,
+            hold_compile=hold_compile,
+            allow_python_calls=allow_python_calls,
+        ),
+        rules,
     )
     return program
 
@@ -76,6 +83,7 @@ def parse_rule(
     program: Program,
     *,
     hold_compile: bool = False,
+    allow_python_calls: bool = True,
 ) -> Rule:
 
     text = source.strip()
@@ -110,7 +118,10 @@ def parse_rule(
         )
 
     transformer = RuleTransformer(
-        used_source, program, hold_compile=hold_compile
+        used_source,
+        program,
+        hold_compile=hold_compile,
+        allow_python_calls=allow_python_calls,
     )
     rules = _transform(transformer, tree)
     if len(rules) != 1:

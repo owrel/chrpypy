@@ -32,6 +32,25 @@ class UnknownConstraintError(NameError):
         self.name = name
 
 
+class PythonCallForbiddenError(ValueError):
+    """Raised when a rule tries to use a Python callback while disabled.
+
+    Undeclared names in a rule body are interpreted as calls to Python
+    callbacks registered with ``Program.function``. When parsing untrusted
+    input (for example in a web application), such calls can lead to remote
+    code execution and must be rejected.
+    """
+
+    def __init__(self, name: str, meta: Meta | None = None) -> None:
+        location = ""
+        if meta is not None and meta.line is not None:
+            location = f" (line {meta.line}, column {meta.column})"
+        super().__init__(
+            f"Python callback call '{name}' is not allowed{location}"
+        )
+        self.name = name
+
+
 def _format_pragmas(pragmas: frozenset[str]) -> str:
     if len(pragmas) == 1:
         return next(iter(pragmas))
@@ -75,11 +94,13 @@ class RuleTransformer(Transformer):
         program: Program,
         *,
         hold_compile: bool = False,
+        allow_python_calls: bool = True,
     ):
         super().__init__()
         self.source = source
         self.program = program
         self.hold_compile = hold_compile
+        self.allow_python_calls = allow_python_calls
         self.rules: list[Rule] = []
 
     def _source_of(self, meta: Meta) -> str:
@@ -140,7 +161,7 @@ class RuleTransformer(Transformer):
         return list(children)
 
     def body_atom(
-        self, _meta: Meta, children: list[Any]
+        self, meta: Meta, children: list[Any]
     ) -> Constraint | FunctionCall:
         constraint, pragmas = children
 
@@ -148,6 +169,8 @@ class RuleTransformer(Transformer):
         if constraint.name in self.program._store_map:
             item = constraint
         else:
+            if not self.allow_python_calls:
+                raise PythonCallForbiddenError(constraint.name, meta)
             item = FunctionCall(constraint.name, *constraint.args)
 
         if pragmas:

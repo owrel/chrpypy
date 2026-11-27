@@ -365,9 +365,19 @@ class Program:
                 return False
         return True
 
-    def parse_rule(self, source: str, *, hold_compile: bool = False) -> Rule:
-
-        return parse_rule(source, self, hold_compile=hold_compile)
+    def parse_rule(
+        self,
+        source: str,
+        *,
+        hold_compile: bool = False,
+        allow_python_calls: bool = True,
+    ) -> Rule:
+        return parse_rule(
+            source,
+            self,
+            hold_compile=hold_compile,
+            allow_python_calls=allow_python_calls,
+        )
 
     def simplification(
         self,
