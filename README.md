@@ -4,7 +4,7 @@ A Python CHR implementation using [chrpp](https://vynce.gitlab.io/chrpp/) as bac
 
 ## Installation Requirements
 
-Python >= 3.14 .
+Python >= 3.13 .
 
 ## System Dependencies (Linux):
 
