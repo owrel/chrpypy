@@ -252,6 +252,7 @@ class BindingGenerator:
         methods += self._generate_failed_method()
         methods += self._generate_reset_program_method()
         methods += self._generate_trace_method()
+        methods += self._generate_clear_cache_method()
         methods += self._generate_reset_method()
         methods += self._generate_store_methods()
         methods += "};\n"
@@ -262,6 +263,11 @@ class BindingGenerator:
             std::string get_traces() {
                 return trace_stream().str();
             }
+        """
+
+    def _generate_clear_cache_method(self) -> str:
+        return """
+            void clear_cache() {}
         """
 
     def _generate_failed_method(self) -> str:
@@ -345,6 +351,8 @@ class BindingGenerator:
                      "Get constraint store as list of strings")
                 .def("get_traces", &{wrapper_cpp_name}::get_traces,
                      "Get the accumulated CHR trace as a string")
+                .def("clear_cache", &{wrapper_cpp_name}::clear_cache,
+                     "Clear the wrapper cache")
                 .def("reset", &{wrapper_cpp_name}::reset,
                      "Reset the constraint store")
                 .def("failed", &{wrapper_cpp_name}::failed,

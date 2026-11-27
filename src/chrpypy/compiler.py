@@ -92,6 +92,16 @@ class Compiler:
             logger.debug(f"Removing old hash entry: {oldest_dir.name}")
             shutil.rmtree(oldest_dir)
 
+    def clear_cache(self) -> None:
+        if self.wrapper is not None:
+            self.wrapper.clear_cache()
+        self.wrapper = None
+        self.compiled = False
+        if self.program._folder.exists():
+            for entry in self.program._folder.iterdir():
+                if entry.is_dir():
+                    shutil.rmtree(entry)
+
     def import_wrapper(self) -> Any:
         if not self.compiled:
             raise ValueError(

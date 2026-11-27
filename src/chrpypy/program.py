@@ -608,6 +608,9 @@ class Program:
             raise ValueError("Wrapper is None, cannot access trace")
         return self._compiler.wrapper.get_traces()
 
+    def clear_cache(self) -> None:
+        self._compiler.clear_cache()
+
     def _require_builtin_rules_activation(self) -> None:
         if not self._builtin_rules_activation:
             raise RuntimeError(
