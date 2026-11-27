@@ -35,7 +35,11 @@ class CHRGenerator:
         if self.program._headers:
             custom_headers = "\n".join(self.program._headers) + "\n"
 
-        code = f"""{custom_headers}#include <iostream>
+        trace_define = ""
+        if self.program._compiler.traces:
+            trace_define = "#define ENABLE_TRACE 1\n"
+
+        code = f"""{trace_define}{custom_headers}#include <iostream>
             #include <string>
             #include <chrpp.hh>
             #include <{helper}>

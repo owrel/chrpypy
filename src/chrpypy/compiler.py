@@ -36,9 +36,10 @@ class Compiler:
     def __init__(
         self,
         program: "Program",
-        max_history: int = 50,
+        max_history: int,
         *,
-        use_cache: bool = True,
+        use_cache: bool,
+        traces: bool,
     ) -> None:
         self.program = program
         self.max_history = max_history
@@ -47,6 +48,7 @@ class Compiler:
         self.chr_gen = CHRGenerator(self.program)
         self.compiled = False
         self._unique_module_name: str | None = None
+        self.traces = traces
 
         self.current_hash_folder: Path = (
             Path(tempfile.gettempdir()) / "default _chrpypy_compile"
@@ -429,6 +431,8 @@ class Compiler:
             str(self.current_hash_folder),
             "--disable-line_error",
         ]
+        if self.traces:
+            chrppc_cmd.append("--trace")
         logger.debug(f"CHRPP compiler command:\n {' '.join(chrppc_cmd)}")
         write_to_log(f"CHRPP compiler command: {' '.join(chrppc_cmd)}")
 

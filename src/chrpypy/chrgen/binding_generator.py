@@ -12,10 +12,14 @@ class BindingGenerator:
         self.program = program
 
     def generate_bindings_includes(self) -> str:
-        includes = """
+        includes = ""
+        if self.program._compiler.traces:
+            includes += "#define ENABLE_TRACE 1\n"
+        includes += """
             #include <pybind11/pybind11.h>
             #include <chrpp.hh>
             #include <iostream>
+            #include <sstream>
             #include <string>
             #include <any>
             #include <pybind11/stl.h>
@@ -53,6 +57,11 @@ class BindingGenerator:
             cpp_type = TypeSystem.python_to_cpp(python_type)
             wrapper_class += f"    std::unordered_map<std::string, chr::Logical_var<{cpp_type}>> logical_vars_{python_type.__name__};\n"
 
+        wrapper_class += "\n"
+        wrapper_class += "    static std::ostringstream& trace_stream() {\n"
+        wrapper_class += "        static std::ostringstream stream;\n"
+        wrapper_class += "        return stream;\n"
+        wrapper_class += "    }\n"
         wrapper_class += "\n"
         return wrapper_class
 
@@ -149,6 +158,13 @@ class BindingGenerator:
     def _generate_constructor(self, wrapper_cpp_name: str) -> str:
         constructor = "public:\n"
         constructor += f"    {wrapper_cpp_name}() {{\n"
+        if self.program._compiler.traces:
+            constructor += (
+                "        TRACE( chr::Log::register_flags(chr::Log::ALL); )\n"
+            )
+            constructor += (
+                "        TRACE( chr::Log::set_output(trace_stream()); )\n"
+            )
         if self.program._retrieve_callbacks():
             constructor += (
                 f"        space = {self.program.name}::create(registry);\n"
@@ -235,10 +251,18 @@ class BindingGenerator:
 
         methods += self._generate_failed_method()
         methods += self._generate_reset_program_method()
+        methods += self._generate_trace_method()
         methods += self._generate_reset_method()
         methods += self._generate_store_methods()
         methods += "};\n"
         return methods
+
+    def _generate_trace_method(self) -> str:
+        return """
+            std::string get_trace() {
+                return trace_stream().str();
+            }
+        """
 
     def _generate_failed_method(self) -> str:
         return """
@@ -319,6 +343,8 @@ class BindingGenerator:
                 .def(py::init<>())
                 .def("get_constraint_store", &{wrapper_cpp_name}::get_constraint_store,
                      "Get constraint store as list of strings")
+                .def("get_trace", &{wrapper_cpp_name}::get_trace,
+                     "Get the accumulated CHR trace as a string")
                 .def("reset", &{wrapper_cpp_name}::reset,
                      "Reset the constraint store")
                 .def("failed", &{wrapper_cpp_name}::failed,

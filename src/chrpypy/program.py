@@ -96,6 +96,7 @@ class Program:
         folder: Path | str | None = None,
         *,
         use_cache: bool = True,
+        traces: bool = True,
         compile_on: Literal["first_post", "rule", "compile"] = "first_post",
         max_history: int = 50,
         auto_reset_rules: bool = True,
@@ -127,7 +128,9 @@ class Program:
 
         self._store_map: dict[str, ConstraintStore] = {}
         self._logical_variable_map: dict[str, LogicalVariable] = {}
-        self._compiler = Compiler(self, max_history, use_cache=use_cache)
+        self._compiler = Compiler(
+            self, max_history, use_cache=use_cache, traces=traces
+        )
 
         if isinstance(compile_on, str):
             self._compile_on = CompileTrigger(compile_on.lower())
@@ -599,6 +602,11 @@ class Program:
         if self._compiler.wrapper is None:
             raise ValueError("Wrapper is None, cannot reset program")
         self._compiler.wrapper.reset_program()
+
+    def get_trace(self) -> str:
+        if self._compiler.wrapper is None:
+            raise ValueError("Wrapper is None, cannot access trace")
+        return self._compiler.wrapper.get_trace()
 
     def _require_builtin_rules_activation(self) -> None:
         if not self._builtin_rules_activation:
