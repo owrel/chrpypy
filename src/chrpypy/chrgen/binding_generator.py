@@ -259,7 +259,7 @@ class BindingGenerator:
 
     def _generate_trace_method(self) -> str:
         return """
-            std::string get_trace() {
+            std::string get_traces() {
                 return trace_stream().str();
             }
         """
@@ -343,7 +343,7 @@ class BindingGenerator:
                 .def(py::init<>())
                 .def("get_constraint_store", &{wrapper_cpp_name}::get_constraint_store,
                      "Get constraint store as list of strings")
-                .def("get_trace", &{wrapper_cpp_name}::get_trace,
+                .def("get_traces", &{wrapper_cpp_name}::get_traces,
                      "Get the accumulated CHR trace as a string")
                 .def("reset", &{wrapper_cpp_name}::reset,
                      "Reset the constraint store")
